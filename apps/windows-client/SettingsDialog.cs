@@ -15,6 +15,8 @@ public sealed class SettingsDialog : Form
     private readonly ProgressBar _installProgress = new();
     private readonly Button _installButton = new();
     private readonly AppSettings _settings;
+    private bool _codexInstalled;
+    private bool _installing;
 
     public string ClientToken => _token.Text.Trim();
 
@@ -39,6 +41,7 @@ public sealed class SettingsDialog : Form
         Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
 
         BuildUi();
+        Shown += async (_, _) => await RefreshInstallStateAsync();
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -127,6 +130,12 @@ public sealed class SettingsDialog : Form
     {
         try
         {
+            if (_codexInstalled || await Task.Run(CodexInstaller.IsCodexInstalled))
+            {
+                ApplyInstallState(installed: true);
+                return;
+            }
+
             _settings.ClientToken = ClientToken;
             if (string.IsNullOrWhiteSpace(_settings.ClientToken))
             {
@@ -134,6 +143,7 @@ public sealed class SettingsDialog : Form
                 return;
             }
 
+            _installing = true;
             _installButton.Enabled = false;
             _installButton.Text = "安装中";
             _installProgress.Value = 0;
@@ -143,9 +153,7 @@ public sealed class SettingsDialog : Form
 
             var progress = new Progress<CodexInstallProgress>(UpdateInstallProgress);
             var result = await CodexInstaller.InstallCodexDesktopAsync(_settings, progress);
-            _installStatus.Text = CodexInstaller.IsCodexInstalled()
-                ? "已检测到 Codex Desktop。"
-                : "未检测到 Codex Desktop。";
+            ApplyInstallState(await Task.Run(CodexInstaller.IsCodexInstalled));
             MessageBox.Show(
                 this,
                 BuildInstallMessage(result),
@@ -160,12 +168,29 @@ public sealed class SettingsDialog : Form
         }
         finally
         {
-            _installButton.Text = "安装桌面版";
-            _installButton.Enabled = true;
+            _installing = false;
             _installProgress.Visible = false;
             _installProgress.Style = ProgressBarStyle.Continuous;
             _installProgress.Value = 0;
+            ApplyInstallState(_codexInstalled);
         }
+    }
+
+    private async Task RefreshInstallStateAsync()
+    {
+        _installStatus.Text = "\u6b63\u5728\u68c0\u6d4b Codex Desktop\u3002";
+        ApplyInstallState(await Task.Run(CodexInstaller.IsCodexInstalled));
+    }
+
+    private void ApplyInstallState(bool installed)
+    {
+        _codexInstalled = installed;
+        _installStatus.Text = installed
+            ? "\u5df2\u68c0\u6d4b\u5230 Codex Desktop\u3002"
+            : "\u672a\u68c0\u6d4b\u5230 Codex Desktop\u3002";
+        _installButton.Text = installed ? "\u5df2\u5b89\u88c5" : "\u5b89\u88c5\u684c\u9762\u7248";
+        _installButton.Enabled = !installed && !_installing;
+        _installButton.Cursor = _installButton.Enabled ? Cursors.Hand : Cursors.Default;
     }
 
     private void UpdateInstallProgress(CodexInstallProgress progress)

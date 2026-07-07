@@ -136,6 +136,7 @@ public sealed class MainForm : Form
         _toggle.Font = new Font(Font.FontFamily, 13F, FontStyle.Bold);
         _toggle.NormalColor = Primary;
         _toggle.HoverColor = PrimaryHover;
+        _toggle.BackColor = Card;
         _toggle.ForeColor = Color.White;
         _toggle.Click += async (_, _) => await ToggleGatewayAsync();
         Controls.Add(_toggle);
@@ -462,6 +463,8 @@ public sealed class MainForm : Form
         {
             FlatStyle = FlatStyle.Flat;
             FlatAppearance.BorderSize = 0;
+            TabStop = false;
+            UseVisualStyleBackColor = false;
             BackColor = Color.Transparent;
             Cursor = Cursors.Hand;
             SetStyle(
@@ -490,7 +493,10 @@ public sealed class MainForm : Form
         protected override void OnPaint(PaintEventArgs e)
         {
             e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            using var surface = new SolidBrush(Parent?.BackColor ?? BackColor);
+            var surfaceColor = BackColor == Color.Transparent
+                ? Parent?.BackColor ?? SystemColors.Control
+                : BackColor;
+            using var surface = new SolidBrush(surfaceColor);
             e.Graphics.FillRectangle(surface, ClientRectangle);
 
             var rect = new Rectangle(0, 0, Width - 1, Height - 1);

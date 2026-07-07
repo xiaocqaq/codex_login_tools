@@ -267,6 +267,7 @@ export function buildAdminServer(options: AdminServerOptions): FastifyInstance {
       rmSync(paths.fileMeta, { force: true });
     } else if (source === "url") {
       rmSync(paths.urlMeta, { force: true });
+      removeLegacyUrlMeta(paths.legacyMeta);
     } else {
       rmSync(paths.file, { force: true });
       rmSync(paths.fileMeta, { force: true });
@@ -356,6 +357,7 @@ export function buildAdminServer(options: AdminServerOptions): FastifyInstance {
       rmSync(paths.fileMeta, { force: true });
     } else if (source === "url") {
       rmSync(paths.urlMeta, { force: true });
+      removeLegacyUrlMeta(paths.legacyMeta);
     } else {
       rmSync(paths.file, { force: true });
       rmSync(paths.fileMeta, { force: true });
@@ -569,6 +571,13 @@ function readManagedMeta<TMeta>(path: string): TMeta | undefined {
     return JSON.parse(readFileSync(path, "utf8")) as TMeta;
   } catch {
     return undefined;
+  }
+}
+
+function removeLegacyUrlMeta(path: string): void {
+  const legacyMeta = readManagedMeta<InstallerMeta>(path);
+  if (legacyMeta?.downloadUrl) {
+    rmSync(path, { force: true });
   }
 }
 

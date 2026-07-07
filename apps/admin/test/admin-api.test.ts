@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
@@ -260,6 +260,55 @@ describe("admin api", () => {
     });
     expect(download.statusCode).toBe(200);
     expect(download.body).toBe("fake-installer");
+  });
+
+  it("lets an admin delete a legacy Codex Desktop installer GitHub URL", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "codex-admin-"));
+    dirs.push(dir);
+    const installerDir = join(dir, "installers");
+    await mkdir(installerDir, { recursive: true });
+    await writeFile(
+      join(installerDir, "codex-desktop-installer.json"),
+      JSON.stringify({
+        fileName: "CodexSetup.msixbundle",
+        size: 0,
+        updatedAt: new Date().toISOString(),
+        downloadUrl: "https://github.com/example/codex/releases/download/v1/CodexSetup.msixbundle",
+      }),
+      "utf8",
+    );
+
+    const server = buildAdminServer({
+      adminUser: "admin",
+      adminPassword: "secret",
+      clientToken: "client-token",
+      dataPath: join(dir, "config.json"),
+    });
+    servers.push(server);
+    const adminToken = await login(server);
+
+    const before = await server.inject({
+      method: "GET",
+      url: "/api/admin/codex-desktop-installer",
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(before.statusCode).toBe(200);
+    expect(before.json().hasUrl).toBe(true);
+
+    const removeUrl = await server.inject({
+      method: "DELETE",
+      url: "/api/admin/codex-desktop-installer?source=url",
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(removeUrl.statusCode).toBe(200);
+
+    const after = await server.inject({
+      method: "GET",
+      url: "/api/admin/codex-desktop-installer",
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(after.statusCode).toBe(200);
+    expect(after.json()).toMatchObject({ uploaded: false, hasUrl: false });
   });
 
   it("lets an admin upload a client release and a gateway download it with version metadata", async () => {
