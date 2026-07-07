@@ -84,7 +84,7 @@ public static class ClientUpdater
         var packagePath = Path.Combine(dir, "Codex 代理.update.exe");
         await DownloadToFileAsync(candidates, packagePath, settings.ClientToken).ConfigureAwait(false);
 
-        StartReplacementScript(packagePath);
+        StartReplacementScript(packagePath, new FileInfo(packagePath).Length);
     }
 
     private static async Task DownloadToFileAsync(
@@ -139,20 +139,65 @@ public static class ClientUpdater
         return candidates;
     }
 
-    private static void StartReplacementScript(string packagePath)
+    private static void StartReplacementScript(string packagePath, long expectedSize)
     {
         var currentPath = Environment.ProcessPath ?? Application.ExecutablePath;
         var scriptPath = Path.Combine(Path.GetTempPath(), "CodexLoginTools", "Update", "apply-update.ps1");
+        var logPath = ClientLog.LogPath;
         var script = """
 param(
   [int]$ProcessId,
   [string]$Source,
-  [string]$Target
+  [string]$Target,
+  [string]$LogPath,
+  [long]$ExpectedSize
 )
-Wait-Process -Id $ProcessId -ErrorAction SilentlyContinue
-Start-Sleep -Milliseconds 800
-Copy-Item -LiteralPath $Source -Destination $Target -Force
-Start-Process -FilePath $Target
+function Write-UpdateLog([string]$Message) {
+  $dir = Split-Path -Parent $LogPath
+  if ($dir) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
+  Add-Content -LiteralPath $LogPath -Value ("[{0:yyyy-MM-dd HH:mm:ss}] update: {1}" -f (Get-Date), $Message)
+}
+
+$ErrorActionPreference = 'Stop'
+try {
+  Write-UpdateLog "waiting for process $ProcessId"
+  Wait-Process -Id $ProcessId -ErrorAction SilentlyContinue
+  Start-Sleep -Milliseconds 1200
+
+  $sourceItem = Get-Item -LiteralPath $Source
+  if ($ExpectedSize -gt 0 -and $sourceItem.Length -ne $ExpectedSize) {
+    throw "Downloaded update size mismatch. Expected $ExpectedSize, got $($sourceItem.Length)."
+  }
+
+  $backup = "$Target.bak"
+  for ($attempt = 1; $attempt -le 20; $attempt++) {
+    try {
+      if (Test-Path -LiteralPath $Target) {
+        Copy-Item -LiteralPath $Target -Destination $backup -Force
+      }
+      Copy-Item -LiteralPath $Source -Destination $Target -Force
+      $targetItem = Get-Item -LiteralPath $Target
+      if ($targetItem.Length -ne $sourceItem.Length) {
+        throw "Target size mismatch. Expected $($sourceItem.Length), got $($targetItem.Length)."
+      }
+
+      Write-UpdateLog "replacement complete: $Target"
+      Start-Process -FilePath $Target
+      exit 0
+    } catch {
+      Write-UpdateLog "replacement attempt $attempt failed: $($_.Exception.Message)"
+      Start-Sleep -Milliseconds 500
+    }
+  }
+
+  throw "Replacement failed after retries."
+} catch {
+  Write-UpdateLog "update failed: $($_.Exception.Message)"
+  if (Test-Path -LiteralPath $Target) {
+    Start-Process -FilePath $Target
+  }
+  exit 1
+}
 """;
         File.WriteAllText(scriptPath, script, new UTF8Encoding(false));
 
@@ -173,6 +218,10 @@ Start-Process -FilePath $Target
         info.ArgumentList.Add(packagePath);
         info.ArgumentList.Add("-Target");
         info.ArgumentList.Add(currentPath);
+        info.ArgumentList.Add("-LogPath");
+        info.ArgumentList.Add(logPath);
+        info.ArgumentList.Add("-ExpectedSize");
+        info.ArgumentList.Add(expectedSize.ToString());
         Process.Start(info);
     }
 

@@ -2,12 +2,21 @@ namespace CodexLoginTools.Win;
 
 static class Program
 {
+    private const string SingleInstanceMutexName = "Global\\CodexLoginTools.Win.CodexProxy";
+
     /// <summary>
     ///  The main entry point for the application.
     /// </summary>
     [STAThread]
     static void Main()
     {
+        using var singleInstance = new Mutex(initiallyOwned: true, SingleInstanceMutexName, out var ownsInstance);
+        if (!ownsInstance)
+        {
+            ClientLog.Write("another instance is already running; exiting");
+            return;
+        }
+
         try
         {
             ClientLog.Write("starting");

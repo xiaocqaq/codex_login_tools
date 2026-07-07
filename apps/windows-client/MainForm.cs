@@ -127,6 +127,7 @@ public sealed class MainForm : Form
         _settingsButton.NormalColor = Color.White;
         _settingsButton.HoverColor = Color.FromArgb(232, 241, 244);
         _settingsButton.BorderColor = Line;
+        _settingsButton.BackColor = Background;
         _settingsButton.ForeColor = Primary;
         _settingsButton.Click += (_, _) => ShowSettingsDialog();
         Controls.Add(_settingsButton);
@@ -461,17 +462,16 @@ public sealed class MainForm : Form
 
         public ActionButton()
         {
-            TabStop = false;
-            BackColor = Color.Transparent;
-            Cursor = Cursors.Hand;
             SetStyle(
                 ControlStyles.AllPaintingInWmPaint |
                 ControlStyles.OptimizedDoubleBuffer |
                 ControlStyles.ResizeRedraw |
-                ControlStyles.SupportsTransparentBackColor |
                 ControlStyles.UserPaint |
                 ControlStyles.StandardClick,
                 true);
+            TabStop = false;
+            BackColor = SystemColors.Control;
+            Cursor = Cursors.Hand;
         }
 
         protected override void OnMouseEnter(EventArgs e)
