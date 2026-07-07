@@ -29,6 +29,9 @@ public sealed class InstallerDownloadStatus
 
     [JsonPropertyName("downloadUrl")]
     public string DownloadUrl { get; set; } = "";
+
+    [JsonPropertyName("hasFile")]
+    public bool HasFile { get; set; }
 }
 
 public static class CodexInstaller
@@ -108,12 +111,9 @@ public static class CodexInstaller
             return new CodexInstallResult { Success = false, Message = "服务端还没有配置 Codex Desktop 安装包。" };
         }
 
-        if (!string.IsNullOrWhiteSpace(status.DownloadUrl))
-        {
-            return await DownloadExternalInstallerAsync(settings, status, progress).ConfigureAwait(false);
-        }
-
-        return await DownloadServerInstallerAsync(settings, progress).ConfigureAwait(false);
+        return !string.IsNullOrWhiteSpace(status.DownloadUrl)
+            ? await DownloadExternalInstallerAsync(settings, status, progress).ConfigureAwait(false)
+            : await DownloadServerInstallerAsync(settings, progress, forceFileSource: false).ConfigureAwait(false);
     }
 
     private static async Task<InstallerDownloadStatus> GetInstallerStatusAsync(AppSettings settings)
@@ -135,7 +135,12 @@ public static class CodexInstaller
         InstallerDownloadStatus status,
         IProgress<CodexInstallProgress>? progress)
     {
-        var candidates = DownloadUrlHelper.BuildDownloadUris(status.DownloadUrl, settings.GitHubProxyUrl);
+        var candidates = DownloadUrlHelper.BuildDownloadUris(status.DownloadUrl).ToList();
+        if (status.HasFile)
+        {
+            candidates.Add(new Uri(BuildInstallerUrl(settings.ServerUrl, forceFileSource: true)));
+        }
+
         Exception? lastError = null;
         foreach (var candidate in candidates)
         {
@@ -147,6 +152,11 @@ public static class CodexInstaller
                     Percent = 0
                 });
                 var request = new HttpRequestMessage(HttpMethod.Get, candidate);
+                if (IsGatewayDownload(candidate, settings.ServerUrl))
+                {
+                    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.ClientToken);
+                }
+
                 using var response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
 
@@ -171,9 +181,10 @@ public static class CodexInstaller
 
     private static async Task<CodexInstallResult> DownloadServerInstallerAsync(
         AppSettings settings,
-        IProgress<CodexInstallProgress>? progress)
+        IProgress<CodexInstallProgress>? progress,
+        bool forceFileSource)
     {
-        var request = new HttpRequestMessage(HttpMethod.Get, BuildInstallerUrl(settings.ServerUrl));
+        var request = new HttpRequestMessage(HttpMethod.Get, BuildInstallerUrl(settings.ServerUrl, forceFileSource));
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.ClientToken);
         using var response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
@@ -388,18 +399,24 @@ public static class CodexInstaller
         });
     }
 
-    private static string BuildInstallerUrl(string serverUrl)
+    private static string BuildInstallerUrl(string serverUrl, bool forceFileSource = false)
     {
         var trimmed = serverUrl.Trim().TrimEnd('/');
-        return trimmed.EndsWith("/api/gateway/codex-desktop-installer", StringComparison.OrdinalIgnoreCase)
+        var url = trimmed.EndsWith("/api/gateway/codex-desktop-installer", StringComparison.OrdinalIgnoreCase)
             ? trimmed
             : $"{trimmed}/api/gateway/codex-desktop-installer";
+        return forceFileSource ? $"{url}?source=file" : url;
     }
 
     private static string BuildInstallerStatusUrl(string serverUrl)
     {
         var trimmed = serverUrl.Trim().TrimEnd('/');
         return $"{trimmed}/api/gateway/codex-desktop-installer/status";
+    }
+
+    private static bool IsGatewayDownload(Uri candidate, string serverUrl)
+    {
+        return candidate.ToString().StartsWith(BuildInstallerUrl(serverUrl), StringComparison.OrdinalIgnoreCase);
     }
 
     private static string? GetFileName(string? value)

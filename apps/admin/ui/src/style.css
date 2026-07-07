@@ -212,3 +212,7 @@ body {
   word-break: break-all;
 }
 
+.source-row {
+  margin: 14px 0 8px;
+}
+

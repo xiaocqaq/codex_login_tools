@@ -20,6 +20,9 @@ public sealed class ClientReleaseStatus
 
     [JsonPropertyName("downloadUrl")]
     public string DownloadUrl { get; set; } = "";
+
+    [JsonPropertyName("hasFile")]
+    public bool HasFile { get; set; }
 }
 
 public sealed class ClientUpdateCheck
@@ -28,6 +31,7 @@ public sealed class ClientUpdateCheck
     public string CurrentVersion { get; init; } = "";
     public string RemoteVersion { get; init; } = "";
     public string DownloadUrl { get; init; } = "";
+    public bool HasFile { get; init; }
 }
 
 public static class ClientUpdater
@@ -65,6 +69,7 @@ public static class ClientUpdater
             CurrentVersion = current,
             RemoteVersion = release.Version,
             DownloadUrl = release.DownloadUrl,
+            HasFile = release.HasFile,
             Available = CompareVersions(release.Version, current) > 0
         };
     }
@@ -72,32 +77,28 @@ public static class ClientUpdater
     public static async Task DownloadAndApplyAsync(AppSettings settings)
     {
         var status = await CheckAsync(settings).ConfigureAwait(false);
-        var candidates = string.IsNullOrWhiteSpace(status.DownloadUrl)
-            ? [new Uri(BuildUrl(settings.ServerUrl, "/api/gateway/client-release/download"))]
-            : DownloadUrlHelper.BuildDownloadUris(status.DownloadUrl, settings.GitHubProxyUrl);
+        var candidates = BuildDownloadCandidates(status, settings);
 
         var dir = Path.Combine(Path.GetTempPath(), "CodexLoginTools", "Update");
         Directory.CreateDirectory(dir);
         var packagePath = Path.Combine(dir, "Codex 代理.update.exe");
-        await DownloadToFileAsync(candidates, packagePath, settings.ClientToken, sendTokenToServerOnly: string.IsNullOrWhiteSpace(status.DownloadUrl))
-            .ConfigureAwait(false);
+        await DownloadToFileAsync(candidates, packagePath, settings.ClientToken).ConfigureAwait(false);
 
         StartReplacementScript(packagePath);
     }
 
     private static async Task DownloadToFileAsync(
-        IReadOnlyList<Uri> candidates,
+        IReadOnlyList<DownloadCandidate> candidates,
         string packagePath,
-        string clientToken,
-        bool sendTokenToServerOnly)
+        string clientToken)
     {
         Exception? lastError = null;
         foreach (var candidate in candidates)
         {
             try
             {
-                using var request = new HttpRequestMessage(HttpMethod.Get, candidate);
-                if (sendTokenToServerOnly)
+                using var request = new HttpRequestMessage(HttpMethod.Get, candidate.Uri);
+                if (candidate.SendToken)
                 {
                     request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", clientToken);
                 }
@@ -116,6 +117,27 @@ public static class ClientUpdater
         }
 
         throw new InvalidOperationException($"客户端下载失败：{lastError?.Message}");
+    }
+
+    private static IReadOnlyList<DownloadCandidate> BuildDownloadCandidates(
+        ClientUpdateCheck status,
+        AppSettings settings)
+    {
+        var candidates = new List<DownloadCandidate>();
+        if (!string.IsNullOrWhiteSpace(status.DownloadUrl))
+        {
+            candidates.AddRange(DownloadUrlHelper.BuildDownloadUris(status.DownloadUrl)
+                .Select(uri => new DownloadCandidate(uri, SendToken: false)));
+        }
+
+        if (string.IsNullOrWhiteSpace(status.DownloadUrl) || status.HasFile)
+        {
+            candidates.Add(new DownloadCandidate(
+                new Uri(BuildUrl(settings.ServerUrl, "/api/gateway/client-release/download?source=file")),
+                SendToken: true));
+        }
+
+        return candidates;
     }
 
     private static void StartReplacementScript(string packagePath)
@@ -187,4 +209,6 @@ Start-Process -FilePath $Target
     private static int GetPart(int[] parts, int index) => index < parts.Length ? parts[index] : 0;
 
     private static string BuildUrl(string serverUrl, string path) => serverUrl.Trim().TrimEnd('/') + path;
+
+    private sealed record DownloadCandidate(Uri Uri, bool SendToken);
 }

@@ -87,10 +87,15 @@ interface Dashboard {
 
 interface InstallerStatus {
   uploaded: boolean;
+  hasFile?: boolean;
+  hasUrl?: boolean;
+  preferred?: "url" | "file";
   fileName?: string;
   size?: number;
   updatedAt?: string;
   downloadUrl?: string;
+  file?: InstallerStatus;
+  url?: InstallerStatus;
 }
 
 interface ClientReleaseStatus extends InstallerStatus {
@@ -404,10 +409,10 @@ const App = {
       }
     }
 
-    async function deleteInstaller() {
+    async function deleteInstaller(source = "") {
       try {
-        await store.api("/api/admin/codex-desktop-installer", { method: "DELETE" });
-        store.installer = { uploaded: false };
+        await store.api(`/api/admin/codex-desktop-installer${source ? `?source=${source}` : ""}`, { method: "DELETE" });
+        store.installer = await store.api<InstallerStatus>("/api/admin/codex-desktop-installer");
         message.success("安装包已删除");
       } catch (error) {
         message.error(error instanceof Error ? error.message : "删除失败");
@@ -474,10 +479,10 @@ const App = {
       }
     }
 
-    async function deleteClientRelease() {
+    async function deleteClientRelease(source = "") {
       try {
-        await store.api("/api/admin/client-release", { method: "DELETE" });
-        store.clientRelease = { uploaded: false };
+        await store.api(`/api/admin/client-release${source ? `?source=${source}` : ""}`, { method: "DELETE" });
+        store.clientRelease = await store.api<ClientReleaseStatus>("/api/admin/client-release");
         message.success("客户端更新包已删除");
       } catch (error) {
         message.error(error instanceof Error ? error.message : "删除失败");
@@ -786,7 +791,7 @@ const App = {
                       </n-space>
                     </template>
                     <n-alert type="info" title="使用方式" class="compact-alert">
-                      推荐填写 GitHub Release 下载地址，客户端会按本地配置的 GitHub 加速代理轮询下载，不占用服务器带宽；也可以继续上传文件到服务器。
+                      推荐填写 GitHub Release 下载地址，客户端会自动轮询内置加速通道下载，不占用服务器带宽；也可以继续上传文件到服务器作为兜底。
                     </n-alert>
                     <n-grid :cols="24" :x-gap="12" responsive="screen">
                       <n-grid-item :span="14">
@@ -830,7 +835,22 @@ const App = {
                           <strong>{{ formatDate(store.installer.updatedAt) }}</strong>
                         </n-grid-item>
                       </n-grid>
-                      <p v-if="store.installer.downloadUrl" class="muted-line url-line">{{ store.installer.downloadUrl }}</p>
+                      <n-space class="source-row">
+                        <n-tag v-if="store.installer.hasUrl" type="success">GitHub 地址已配置</n-tag>
+                        <n-tag v-if="store.installer.hasFile" type="info">服务端文件已上传</n-tag>
+                      </n-space>
+                      <p v-if="store.installer.url?.downloadUrl" class="muted-line url-line">{{ store.installer.url.downloadUrl }}</p>
+                      <p v-if="store.installer.file" class="muted-line">服务端文件：{{ store.installer.file.fileName }}，{{ formatBytes(store.installer.file.size) }}</p>
+                      <n-space>
+                        <n-popconfirm v-if="store.installer.hasUrl" positive-text="确认" negative-text="取消" @positive-click="deleteInstaller('url')">
+                          <template #trigger><n-button tertiary type="error">删除 GitHub 地址</n-button></template>
+                          只删除 GitHub 下载地址，已上传到服务器的安装包会保留。
+                        </n-popconfirm>
+                        <n-popconfirm v-if="store.installer.hasFile" positive-text="确认" negative-text="取消" @positive-click="deleteInstaller('file')">
+                          <template #trigger><n-button tertiary type="error">删除服务端文件</n-button></template>
+                          只删除手动上传的安装包，GitHub 下载地址会保留。
+                        </n-popconfirm>
+                      </n-space>
                     </n-card>
                     <n-empty v-else description="暂未配置 Codex Desktop 安装包" />
                   </n-card>
@@ -912,7 +932,22 @@ const App = {
                           <strong>{{ formatDate(store.clientRelease.updatedAt) }}</strong>
                         </n-grid-item>
                       </n-grid>
-                      <p v-if="store.clientRelease.downloadUrl" class="muted-line url-line">{{ store.clientRelease.downloadUrl }}</p>
+                      <n-space class="source-row">
+                        <n-tag v-if="store.clientRelease.hasUrl" type="success">GitHub 地址已配置</n-tag>
+                        <n-tag v-if="store.clientRelease.hasFile" type="info">服务端文件已上传</n-tag>
+                      </n-space>
+                      <p v-if="store.clientRelease.url?.downloadUrl" class="muted-line url-line">{{ store.clientRelease.url.downloadUrl }}</p>
+                      <p v-if="store.clientRelease.file" class="muted-line">服务端文件：{{ store.clientRelease.file.fileName }}，{{ formatBytes(store.clientRelease.file.size) }}</p>
+                      <n-space>
+                        <n-popconfirm v-if="store.clientRelease.hasUrl" positive-text="确认" negative-text="取消" @positive-click="deleteClientRelease('url')">
+                          <template #trigger><n-button tertiary type="error">删除 GitHub 地址</n-button></template>
+                          只删除 GitHub 下载地址，已上传到服务器的更新包会保留。
+                        </n-popconfirm>
+                        <n-popconfirm v-if="store.clientRelease.hasFile" positive-text="确认" negative-text="取消" @positive-click="deleteClientRelease('file')">
+                          <template #trigger><n-button tertiary type="error">删除服务端文件</n-button></template>
+                          只删除手动上传的更新包，GitHub 下载地址会保留。
+                        </n-popconfirm>
+                      </n-space>
                     </n-card>
                     <n-empty v-else description="暂未配置客户端更新包" />
                   </n-card>

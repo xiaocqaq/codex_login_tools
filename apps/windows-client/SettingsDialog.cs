@@ -11,14 +11,12 @@ public sealed class SettingsDialog : Form
     private static readonly Color Line = Color.FromArgb(218, 229, 233);
 
     private readonly TextBox _token = new();
-    private readonly TextBox _githubProxy = new();
     private readonly Label _installStatus = new();
     private readonly ProgressBar _installProgress = new();
     private readonly Button _installButton = new();
     private readonly AppSettings _settings;
 
     public string ClientToken => _token.Text.Trim();
-    public string GitHubProxyUrl => _githubProxy.Text.Trim();
 
     public SettingsDialog(AppSettings settings)
     {
@@ -26,12 +24,11 @@ public sealed class SettingsDialog : Form
         {
             ServerUrl = "https://admin.xlingo.fun",
             ClientToken = settings.ClientToken,
-            GitHubProxyUrl = settings.GitHubProxyUrl,
             GatewayPort = 17861
         };
 
         AutoScaleMode = AutoScaleMode.None;
-        ClientSize = new Size(480, 420);
+        ClientSize = new Size(480, 360);
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
@@ -50,7 +47,7 @@ public sealed class SettingsDialog : Form
         e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
         using var cardBrush = new SolidBrush(Card);
         using var linePen = new Pen(Line);
-        using var card = RoundedRect(new Rectangle(24, 70, 432, 266), 14);
+        using var card = RoundedRect(new Rectangle(24, 70, 432, 206), 14);
         e.Graphics.FillPath(cardBrush, card);
         e.Graphics.DrawPath(linePen, card);
     }
@@ -87,33 +84,14 @@ public sealed class SettingsDialog : Form
         _token.Text = _settings.ClientToken;
         Controls.Add(_token);
 
-        Controls.Add(new Label
-        {
-            AutoSize = false,
-            Location = new Point(48, 178),
-            Size = new Size(220, 24),
-            Text = "GitHub 加速代理",
-            Font = new Font(Font.FontFamily, 10F, FontStyle.Bold),
-            ForeColor = TextColor,
-            BackColor = Card
-        });
-
-        _githubProxy.Location = new Point(48, 210);
-        _githubProxy.Size = new Size(384, 32);
-        _githubProxy.Font = new Font(Font.FontFamily, 10F);
-        _githubProxy.BorderStyle = BorderStyle.FixedSingle;
-        _githubProxy.Text = _settings.GitHubProxyUrl;
-        _githubProxy.PlaceholderText = "一行一个或逗号分隔，例如 https://githubproxy.cc/";
-        Controls.Add(_githubProxy);
-
-        _installStatus.Location = new Point(48, 270);
+        _installStatus.Location = new Point(48, 190);
         _installStatus.Size = new Size(250, 28);
         _installStatus.ForeColor = Muted;
         _installStatus.BackColor = Card;
         _installStatus.Text = "Codex Desktop 安装状态";
         Controls.Add(_installStatus);
 
-        _installButton.Location = new Point(312, 264);
+        _installButton.Location = new Point(312, 184);
         _installButton.Size = new Size(120, 34);
         _installButton.Text = "安装桌面版";
         _installButton.FlatStyle = FlatStyle.Flat;
@@ -124,16 +102,16 @@ public sealed class SettingsDialog : Form
         _installButton.Click += async (_, _) => await InstallCodexAsync();
         Controls.Add(_installButton);
 
-        _installProgress.Location = new Point(48, 318);
+        _installProgress.Location = new Point(48, 238);
         _installProgress.Size = new Size(384, 12);
         _installProgress.Visible = false;
         Controls.Add(_installProgress);
 
-        var cancel = BuildFooterButton("取消", new Point(224, 362), Color.White, Primary, Line);
+        var cancel = BuildFooterButton("取消", new Point(224, 302), Color.White, Primary, Line);
         cancel.DialogResult = DialogResult.Cancel;
         Controls.Add(cancel);
 
-        var save = BuildFooterButton("保存", new Point(344, 362), Primary, Color.White, Primary);
+        var save = BuildFooterButton("保存", new Point(344, 302), Primary, Color.White, Primary);
         save.Click += (_, _) =>
         {
             DialogResult = DialogResult.OK;
@@ -150,7 +128,6 @@ public sealed class SettingsDialog : Form
         try
         {
             _settings.ClientToken = ClientToken;
-            _settings.GitHubProxyUrl = GitHubProxyUrl;
             if (string.IsNullOrWhiteSpace(_settings.ClientToken))
             {
                 MessageBox.Show(this, "请先填写客户端 Token。", "缺少 Token", MessageBoxButtons.OK, MessageBoxIcon.Warning);

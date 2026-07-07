@@ -248,7 +248,6 @@ public sealed class MainForm : Form
         }
 
         _settings.ClientToken = dialog.ClientToken;
-        _settings.GitHubProxyUrl = dialog.GitHubProxyUrl;
         SettingsStore.Save(_settings);
         UpdateGatewayStatus();
         _ = RefreshCodexStatusAsync();
