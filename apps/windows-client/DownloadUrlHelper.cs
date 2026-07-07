@@ -4,9 +4,11 @@ public static class DownloadUrlHelper
 {
     private static readonly string[] BuiltInGitHubProxies =
     [
-        "https://ghproxy.com/",
-        "https://github-speedup.com/",
-        "https://gitclone.com/",
+        "https://gh-proxy.org/",
+        "https://v4.gh-proxy.org/",
+        "https://v6.gh-proxy.org/",
+        "https://cdn.gh-proxy.org/",
+        "https://ghfast.top/",
     ];
 
     public static IReadOnlyList<Uri> BuildDownloadUris(string url, string githubProxyUrl = "")
