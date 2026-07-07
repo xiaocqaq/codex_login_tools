@@ -213,9 +213,8 @@ public static class CodexInstaller
         var targetDir = Path.Combine(Path.GetTempPath(), "CodexLoginTools", "Installer");
         Directory.CreateDirectory(targetDir);
         var targetPath = Path.Combine(targetDir, SanitizeFileName(fileName));
-        await using var source = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
         await using var target = File.Create(targetPath);
-        await CopyWithProgressAsync(source, target, response.Content.Headers.ContentLength, progress).ConfigureAwait(false);
+        await BinaryDownloadGuard.CopyVerifiedAsync(response.Content, target, progress).ConfigureAwait(false);
         return new CodexInstallResult { Success = true, Output = targetPath };
     }
 

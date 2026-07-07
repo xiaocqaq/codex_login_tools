@@ -4,7 +4,6 @@ public static class DownloadUrlHelper
 {
     private static readonly string[] BuiltInGitHubProxies =
     [
-        "https://githubproxy.cc/",
         "https://ghproxy.com/",
         "https://github-speedup.com/",
         "https://gitclone.com/",

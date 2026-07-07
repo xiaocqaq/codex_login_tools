@@ -105,9 +105,8 @@ public static class ClientUpdater
 
                 using var response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
-                await using var source = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
                 await using var target = File.Create(packagePath);
-                await source.CopyToAsync(target).ConfigureAwait(false);
+                await BinaryDownloadGuard.CopyVerifiedAsync(response.Content, target).ConfigureAwait(false);
                 return;
             }
             catch (Exception error)
