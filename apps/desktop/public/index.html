@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Codex Login Tools</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="header">
+        <div>
+          <p class="eyebrow">Codex Login Tools</p>
+          <h1>本地代理控制台</h1>
+        </div>
+        <div class="status-pill" id="gatewayStatus">未启动</div>
+      </section>
+
+      <section class="panel status-panel">
+        <div>
+          <h2>代理状态</h2>
+          <p id="statusDetail">等待读取状态</p>
+        </div>
+        <div class="actions">
+          <button class="primary" id="toggleGateway">开启代理</button>
+          <button id="refreshConfig">刷新配置</button>
+          <button id="writeCodexConfig">写入 Codex 配置</button>
+        </div>
+      </section>
+
+      <section class="grid">
+        <form class="panel" id="settingsForm">
+          <h2>远程管理端</h2>
+          <label>
+            服务端地址
+            <input name="configUrl" spellcheck="false" />
+          </label>
+          <label>
+            客户端 Token
+            <input name="clientToken" type="password" spellcheck="false" />
+          </label>
+
+          <h2>本地 Codex</h2>
+          <div class="inline-fields">
+            <label>
+              端口
+              <input name="gatewayPort" type="number" min="0" max="65535" />
+            </label>
+            <label>
+              模型别名
+              <input name="model" spellcheck="false" />
+            </label>
+          </div>
+          <label>
+            Provider ID
+            <input name="providerId" spellcheck="false" />
+          </label>
+          <label class="check-row">
+            <input name="startOnLaunch" type="checkbox" />
+            启动应用时自动开启代理
+          </label>
+          <label class="check-row">
+            <input name="writeCodexConfigOnStart" type="checkbox" />
+            开启时自动写入 Codex 配置
+          </label>
+          <button class="primary" type="submit">保存设置</button>
+        </form>
+
+        <section class="panel">
+          <h2>Codex</h2>
+          <p id="codexStatus">正在检测 Codex...</p>
+          <button id="checkCodex">重新检测</button>
+          <button class="primary" id="installCodex">安装 Codex</button>
+        </section>
+
+        <section class="panel">
+          <h2>更新</h2>
+          <p id="updateStatus">打包安装后可检查客户端更新。</p>
+          <button id="checkUpdates">检查更新</button>
+        </section>
+      </section>
+
+      <p class="message" id="message"></p>
+    </main>
+    <script src="./renderer.js"></script>
+  </body>
+</html>

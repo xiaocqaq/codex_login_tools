@@ -1,0 +1,28 @@
+{
+  "name": "codex-login-tools",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "npm run build -ws",
+    "test": "npm run test -ws",
+    "dev:admin": "npm run dev -w @codex-login-tools/admin",
+    "dev:gateway": "npm run dev -w @codex-login-tools/gateway",
+    "dev:desktop": "npm run dev -w @codex-login-tools/desktop",
+    "start:admin": "npm run start -w @codex-login-tools/admin",
+    "start:gateway": "npm run start -w @codex-login-tools/gateway",
+    "build:desktop": "npm run build -w @codex-login-tools/desktop",
+    "dist:desktop": "npm run dist -w @codex-login-tools/desktop",
+    "pack:desktop": "npm run pack -w @codex-login-tools/desktop"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

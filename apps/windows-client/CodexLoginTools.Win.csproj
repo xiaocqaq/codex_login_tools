@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationIcon>Assets\app-icon.ico</ApplicationIcon>
+    <AssemblyName>CodexProxy</AssemblyName>
+    <Product>Codex 代理</Product>
+    <FileDescription>Codex 代理</FileDescription>
+    <Version>0.1.5</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="Assets\app-icon.ico" />
+  </ItemGroup>
+
+</Project>

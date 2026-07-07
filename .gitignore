@@ -1,0 +1,77 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+**/dist/
+bin/
+**/bin/
+obj/
+**/obj/
+release/
+**/release/
+*.tsbuildinfo
+.vite/
+.cache/
+
+# Admin generated frontend assets
+apps/admin/public/
+
+# Local runtime data and uploads
+data/
+**/data/
+uploads/
+**/uploads/
+logs/
+**/logs/
+tmp/
+temp/
+*.log
+*.tmp
+*.bak
+*.backup
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+*.crt
+*.csr
+*.cer
+*.der
+*.jks
+*.keystore
+secrets/
+credentials/
+config.local.*
+settings.local.*
+
+# Packaged binaries and archives
+*.exe
+*.msi
+*.msix
+*.msixbundle
+*.appx
+*.appxbundle
+*.zip
+*.7z
+*.rar
+*.tar
+*.tar.gz
+*.tgz
+
+# Local screenshots and previews
+admin-*-preview.png
+admin-vue-*.png
+
+# OS and editors
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/

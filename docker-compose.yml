@@ -1,0 +1,18 @@
+services:
+  admin:
+    build:
+      context: .
+      dockerfile: apps/admin/Dockerfile
+    environment:
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change-me}
+      CLIENT_TOKEN: ${CLIENT_TOKEN:-dev-client-token}
+      ADMIN_PORT: "18080"
+      ADMIN_DATA_PATH: /app/data/config.json
+    ports:
+      - "18080:18080"
+    volumes:
+      - admin-data:/app/data
+
+volumes:
+  admin-data:

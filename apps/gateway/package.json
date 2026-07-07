@@ -1,0 +1,30 @@
+{
+  "name": "@codex-login-tools/gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/server.js",
+  "exports": {
+    "./app": {
+      "types": "./dist/app.d.ts",
+      "default": "./dist/app.js"
+    },
+    "./codex-config": {
+      "types": "./dist/codex-config.d.ts",
+      "default": "./dist/codex-config.js"
+    }
+  },
+  "scripts": {
+    "build": "npm run build -w @codex-login-tools/shared && tsc -p tsconfig.json",
+    "test": "npm run build -w @codex-login-tools/shared && vitest run",
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@codex-login-tools/shared": "file:../../packages/shared",
+    "fastify": "^5.6.2"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.4"
+  }
+}

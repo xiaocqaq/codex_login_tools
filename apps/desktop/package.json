@@ -1,0 +1,49 @@
+{
+  "name": "@codex-login-tools/desktop",
+  "version": "0.1.0",
+  "description": "Desktop gateway controller for Codex Login Tools",
+  "author": "Codex Login Tools",
+  "private": true,
+  "type": "module",
+  "main": "dist/main/main.js",
+  "scripts": {
+    "build": "npm run build -w @codex-login-tools/gateway && tsc -p tsconfig.json",
+    "test": "npm run build -w @codex-login-tools/gateway && vitest run",
+    "dev": "npm run build && electron .",
+    "dist": "npm run build && electron-builder --win",
+    "pack": "npm run build && electron-builder --win --dir"
+  },
+  "dependencies": {
+    "@codex-login-tools/gateway": "file:../gateway",
+    "electron-updater": "^6.6.2"
+  },
+  "devDependencies": {
+    "electron": "38.8.6",
+    "electron-builder": "^26.0.12",
+    "vitest": "^3.2.4"
+  },
+  "build": {
+    "appId": "tools.codex-login.desktop",
+    "productName": "Codex Login Tools",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "public/**/*",
+      "package.json"
+    ],
+    "win": {
+      "signAndEditExecutable": false,
+      "target": [
+        "portable"
+      ]
+    },
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://admin.xlingo.fun/downloads/desktop/"
+      }
+    ]
+  }
+}
