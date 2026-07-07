@@ -446,7 +446,7 @@ public sealed class MainForm : Form
         }
     }
 
-    private sealed class ActionButton : Button
+    private sealed class ActionButton : Control
     {
         private bool _hovered;
 
@@ -461,10 +461,7 @@ public sealed class MainForm : Form
 
         public ActionButton()
         {
-            FlatStyle = FlatStyle.Flat;
-            FlatAppearance.BorderSize = 0;
             TabStop = false;
-            UseVisualStyleBackColor = false;
             BackColor = Color.Transparent;
             Cursor = Cursors.Hand;
             SetStyle(
@@ -472,7 +469,8 @@ public sealed class MainForm : Form
                 ControlStyles.OptimizedDoubleBuffer |
                 ControlStyles.ResizeRedraw |
                 ControlStyles.SupportsTransparentBackColor |
-                ControlStyles.UserPaint,
+                ControlStyles.UserPaint |
+                ControlStyles.StandardClick,
                 true);
         }
 
@@ -488,6 +486,13 @@ public sealed class MainForm : Form
             _hovered = false;
             Invalidate();
             base.OnMouseLeave(e);
+        }
+
+        protected override void OnEnabledChanged(EventArgs e)
+        {
+            Cursor = Enabled ? Cursors.Hand : Cursors.Default;
+            Invalidate();
+            base.OnEnabledChanged(e);
         }
 
         protected override void OnPaint(PaintEventArgs e)
