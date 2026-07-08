@@ -24,6 +24,7 @@ public sealed class GatewayServer
     public bool IsRunning => _listener?.IsListening == true;
     public bool IsProxyBlocked => !string.IsNullOrWhiteSpace(_proxyBlockedError);
     public string Status { get; private set; } = "未启动";
+    public event EventHandler<string>? ProxyBlocked;
 
     public GatewayServer(AppSettings settings)
     {
@@ -46,9 +47,7 @@ public sealed class GatewayServer
         {
             if (IsAuthorizationFailure(response.StatusCode))
             {
-                var error = TryReadError(body);
-                _proxyBlockedError = string.IsNullOrWhiteSpace(error) ? "unauthorized" : error;
-                Status = BuildFriendlyGatewayError(response.StatusCode, body);
+                BlockProxy(response.StatusCode, body);
             }
 
             if (throwOnFailure)
@@ -233,6 +232,19 @@ public sealed class GatewayServer
     {
         var seconds = _config?.PollIntervalSeconds ?? 60;
         return TimeSpan.FromSeconds(Math.Clamp(seconds, 5, 3600));
+    }
+
+    private void BlockProxy(HttpStatusCode statusCode, string body)
+    {
+        var wasBlocked = IsProxyBlocked;
+        var error = TryReadError(body);
+        _proxyBlockedError = string.IsNullOrWhiteSpace(error) ? "unauthorized" : error;
+        Status = BuildFriendlyGatewayError(statusCode, body);
+
+        if (!wasBlocked)
+        {
+            ProxyBlocked?.Invoke(this, Status);
+        }
     }
 
     private async Task<HttpResponseMessage> SendUpstreamAsync(

@@ -31,6 +31,7 @@ public sealed class MainForm : Form
         ClientLog.Write("main form ctor start");
         _settings = SettingsStore.Load();
         _gateway = new GatewayServer(_settings);
+        _gateway.ProxyBlocked += OnGatewayProxyBlocked;
 
         AutoScaleMode = AutoScaleMode.None;
         ClientSize = new Size(560, 410);
@@ -387,6 +388,37 @@ public sealed class MainForm : Form
 
         CodexConfigWriter.Restore();
         CodexAuthWriter.Restore();
+    }
+
+    private void OnGatewayProxyBlocked(object? sender, string message)
+    {
+        if (IsDisposed || !IsHandleCreated)
+        {
+            return;
+        }
+
+        try
+        {
+            BeginInvoke(new Action(() => HandleGatewayProxyBlocked(message)));
+        }
+        catch (InvalidOperationException)
+        {
+            // The form may be closing while the background refresh reports the block.
+        }
+    }
+
+    private void HandleGatewayProxyBlocked(string message)
+    {
+        if (IsDisposed)
+        {
+            return;
+        }
+
+        ClientLog.Write("gateway stopped after authorization failure: " + message);
+        StopGatewayAndRestoreConfig();
+        UpdateGatewayStatus();
+        _statusDetail.Text = message;
+        AppDialog.ShowWarning(this, "代理已关闭", message);
     }
 
     private void UpdateGatewayStatus()
