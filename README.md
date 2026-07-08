@@ -68,11 +68,13 @@ http://你的服务器IP:18080
 
 管理端用于集中维护：
 
-- 服务商配置：`baseUrl`、`apiKey`、启用状态
-- 模型映射：本地模型名到上游模型名的路由
-- 故障切换：同一个 `matchModel` 可配置多条 route
-- 客户端令牌：创建、复制、启用、停用、删除
-- 用量统计：按令牌统计请求数和 token 用量
+- 总览诊断：展示客户端更新、Token 状态和代理路由健康情况
+- 主题切换：支持跟随系统、亮色和暗色，并自动响应系统亮暗主题变化
+- 服务商配置：维护 `baseUrl`、`apiKey`、启用状态和该服务商下的模型映射
+- 服务商优先级：拖拽调整服务商顺序，排名越靠前越优先使用
+- 故障切换：同一个 `matchModel` 可配置多条 route，按服务商优先级自动排序
+- 客户端令牌：创建、复制、启用、停用、删除，并可限制指定令牌可用的服务商
+- 用量统计：按令牌统计请求数和 token 用量，Token 使用量以“万”为单位保留两位小数
 - Codex 桌面版安装包：上传文件或配置下载地址
 - Windows 客户端更新包：上传 exe 或配置下载地址和版本号
 
@@ -105,9 +107,15 @@ http://你的服务器IP:18080
 }
 ```
 
+说明：
+
+- `routes[].priority` 仍保留为网关排序字段；管理端不再手动填写优先级数字，保存配置时会根据“服务商优先级”页面的排序自动生成。
+- 令牌可用服务商会映射为对应 route 的 `allowedRouteIds` 限制；未限制时默认可使用全部已启用服务商。
+- 模型映射详情统一在“服务商配置”页面维护，“服务商优先级”页面只负责启停和排序。
+
 ## 故障自动切换
 
-同一个 `matchModel` 可以配置多条 route。网关按 `priority` 从高到低尝试。
+同一个 `matchModel` 可以配置多条 route。网关按 `priority` 从高到低尝试；该优先级由管理端根据服务商排序自动写入，排名靠前的服务商会优先被使用。
 
 自动切换触发条件：
 
@@ -213,6 +221,8 @@ requires_openai_auth = true
 ```powershell
 npm test
 npm run build
+npm run test -w @codex-login-tools/admin
+npm run build -w @codex-login-tools/admin
 dotnet build apps\windows-client\CodexLoginTools.Win.csproj -c Release
 ```
 
