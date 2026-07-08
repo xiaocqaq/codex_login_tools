@@ -3,6 +3,13 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { parseRemoteConfig, type RemoteConfig } from "@codex-login-tools/shared";
 
+export interface BoundDevice {
+  deviceId: string;
+  name: string;
+  firstSeenAt: string;
+  lastSeenAt: string;
+}
+
 export interface ClientTokenRecord {
   id: string;
   name: string;
@@ -12,6 +19,8 @@ export interface ClientTokenRecord {
   tokenPreview: string;
   enabled: boolean;
   allowedRouteIds?: string[];
+  deviceLimit?: number;
+  boundDevices?: BoundDevice[];
   createdAt: string;
   lastUsedAt?: string;
   deletedAt?: string;
@@ -58,10 +67,22 @@ export interface AdminStore {
   getConfigForToken: (token?: ClientTokenRecord) => RemoteConfig | undefined;
   updateClientToken: (
     id: string,
-    input: { enabled?: boolean; name?: string; note?: string; allowedRouteIds?: unknown },
+    input: {
+      enabled?: boolean;
+      name?: string;
+      note?: string;
+      allowedRouteIds?: unknown;
+      deviceLimit?: number;
+    },
   ) => ClientTokenRecord | undefined;
   deleteClientToken: (id: string) => ClientTokenRecord | undefined;
   validateClientToken: (tokenValue: string, legacyToken: string) => TokenValidation;
+  authorizeDevice: (
+    token: ClientTokenRecord,
+    deviceId: string,
+    deviceName: string,
+  ) => { ok: boolean; error?: string };
+  unbindDevice: (id: string, deviceId: string) => ClientTokenRecord | undefined;
   recordUsage: (token: ClientTokenRecord, counters: UsageCounters) => void;
   getDashboard: () => {
     totals: UsageCounters;
@@ -105,6 +126,8 @@ export function createAdminStore(options: {
         tokenPreview: previewToken(tokenValue),
         enabled: true,
         allowedRouteIds: [],
+        deviceLimit: 0,
+        boundDevices: [],
         createdAt: new Date().toISOString(),
       };
       state = { ...state, clientTokens: [...state.clientTokens, token] };
@@ -161,6 +184,10 @@ export function createAdminStore(options: {
               input.allowedRouteIds === undefined
                 ? token.allowedRouteIds
                 : normalizeAllowedRouteIds(input.allowedRouteIds),
+            deviceLimit:
+              input.deviceLimit === undefined
+                ? token.deviceLimit
+                : normalizeDeviceLimit(input.deviceLimit),
           };
           return updated;
         }),
@@ -206,6 +233,61 @@ export function createAdminStore(options: {
       token.lastUsedAt = new Date().toISOString();
       persist();
       return { ok: true, statusCode: 200, token };
+    },
+    authorizeDevice: (token, deviceId, deviceName) => {
+      const limit = normalizeDeviceLimit(token.deviceLimit);
+      if (limit <= 0) {
+        return { ok: true };
+      }
+
+      const record = state.clientTokens.find((candidate) => candidate.id === token.id);
+      if (!record) {
+        return { ok: true };
+      }
+
+      const id = deviceId.trim() || "unknown";
+      const name = deviceName.trim() || (id === "unknown" ? "未知设备（旧版客户端）" : id);
+      const now = new Date().toISOString();
+      const devices = record.boundDevices ?? [];
+
+      const existing = devices.find((device) => device.deviceId === id);
+      if (existing) {
+        existing.lastSeenAt = now;
+        existing.name = name;
+        record.boundDevices = devices;
+        persist();
+        return { ok: true };
+      }
+
+      if (devices.length >= limit) {
+        return { ok: false, error: "device limit reached" };
+      }
+
+      record.boundDevices = [...devices, { deviceId: id, name, firstSeenAt: now, lastSeenAt: now }];
+      persist();
+      return { ok: true };
+    },
+    unbindDevice: (id, deviceId) => {
+      let updated: ClientTokenRecord | undefined;
+      state = {
+        ...state,
+        clientTokens: state.clientTokens.map((token) => {
+          if (token.id !== id || token.deletedAt) {
+            return token;
+          }
+          updated = {
+            ...token,
+            boundDevices: (token.boundDevices ?? []).filter(
+              (device) => device.deviceId !== deviceId,
+            ),
+          };
+          return updated;
+        }),
+      };
+      if (updated) {
+        persist();
+      }
+      return updated;
     },
     recordUsage: (token, counters) => {
       const day = new Date().toISOString().slice(0, 10);
@@ -282,6 +364,8 @@ function normalizeToken(input: ClientTokenRecord): ClientTokenRecord {
     ...input,
     tokenValue: input.tokenValue ?? input.tokenPreview ?? "",
     allowedRouteIds: normalizeAllowedRouteIds(input.allowedRouteIds),
+    deviceLimit: normalizeDeviceLimit(input.deviceLimit),
+    boundDevices: Array.isArray(input.boundDevices) ? input.boundDevices : [],
   };
 }
 
@@ -323,6 +407,10 @@ function normalizeAllowedRouteIds(input: unknown): string[] {
         .map((item) => item.trim()),
     ),
   ];
+}
+
+function normalizeDeviceLimit(input: unknown): number {
+  return typeof input === "number" && Number.isInteger(input) && input > 0 ? input : 0;
 }
 
 function sanitizeCounters(input: Partial<UsageCounters>): UsageCounters {

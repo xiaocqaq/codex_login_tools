@@ -36,6 +36,7 @@ interface TokenBody {
   note?: string;
   enabled?: boolean;
   allowedRouteIds?: string[];
+  deviceLimit?: number;
 }
 
 interface InstallerMeta {
@@ -186,6 +187,21 @@ export function buildAdminServer(options: AdminServerOptions): FastifyInstance {
     }
     return { ok: true };
   });
+
+  app.delete<{ Params: { id: string; deviceId: string } }>(
+    "/api/admin/tokens/:id/devices/:deviceId",
+    async (request, reply) => {
+      if (!hasBearerToken(request.headers.authorization, adminToken)) {
+        return reply.status(401).send({ error: "unauthorized" });
+      }
+
+      const token = store.unbindDevice(request.params.id, request.params.deviceId);
+      if (!token) {
+        return reply.status(404).send({ error: "token not found" });
+      }
+      return { ok: true, token };
+    },
+  );
 
   app.get("/api/admin/dashboard", async (request, reply) => {
     if (!hasBearerToken(request.headers.authorization, adminToken)) {
@@ -373,6 +389,15 @@ export function buildAdminServer(options: AdminServerOptions): FastifyInstance {
     const validation = store.validateClientToken(auth ?? "", options.clientToken);
     if (!validation.ok) {
       return reply.status(validation.statusCode).send({ error: validation.error });
+    }
+
+    if (validation.token) {
+      const deviceId = readSingleHeader(request.headers["x-device-id"]) ?? "";
+      const deviceName = decodeHeader(readSingleHeader(request.headers["x-device-name"]));
+      const device = store.authorizeDevice(validation.token, deviceId, deviceName);
+      if (!device.ok) {
+        return reply.status(403).send({ error: device.error });
+      }
     }
 
     const config = store.getConfigForToken(validation.token);
@@ -638,6 +663,17 @@ function sanitizeFileName(input: string | undefined): string {
 
 function readSingleHeader(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
+}
+
+function decodeHeader(value: string | undefined): string {
+  if (!value) {
+    return "";
+  }
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
 
 function isHttpUrl(value: string): boolean {

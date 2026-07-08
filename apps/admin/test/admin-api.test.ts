@@ -603,6 +603,101 @@ describe("admin api", () => {
     expect(gateway.json().providers[0].apiKey).toBe("sk-original");
     expect(gateway.json().providers[0].baseUrl).toBe("https://new.example.com/v1");
   });
+
+  it("enforces per-token device limit and supports unbinding", async () => {
+    const server = buildAdminServer({
+      adminUser: "admin",
+      adminPassword: "secret",
+      clientToken: "legacy-client-token",
+    });
+    servers.push(server);
+    const adminToken = await login(server);
+
+    const save = await server.inject({
+      method: "PUT",
+      url: "/api/admin/config",
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        version: 1,
+        pollIntervalSeconds: 60,
+        providers: [
+          {
+            id: "primary",
+            name: "Primary",
+            baseUrl: "https://api.example.com/v1",
+            apiKey: "sk-test",
+            enabled: true,
+          },
+        ],
+        routes: [
+          {
+            id: "default",
+            providerId: "primary",
+            matchModel: "*",
+            upstreamModel: "gpt-5.5-compatible",
+            enabled: true,
+            priority: 100,
+          },
+        ],
+        defaultRouteId: "default",
+      },
+    });
+    expect(save.statusCode).toBe(200);
+
+    const created = await server.inject({
+      method: "POST",
+      url: "/api/admin/tokens",
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { name: "device-limited" },
+    });
+    const { token, tokenValue } = created.json<{ token: { id: string }; tokenValue: string }>();
+
+    const setLimit = await server.inject({
+      method: "PATCH",
+      url: `/api/admin/tokens/${token.id}`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { deviceLimit: 2 },
+    });
+    expect(setLimit.statusCode).toBe(200);
+
+    const pull = (deviceId: string) =>
+      server.inject({
+        method: "GET",
+        url: "/api/gateway/config",
+        headers: { authorization: `Bearer ${tokenValue}`, "x-device-id": deviceId },
+      });
+
+    expect((await pull("device-a")).statusCode).toBe(200);
+    expect((await pull("device-b")).statusCode).toBe(200);
+
+    const third = await pull("device-c");
+    expect(third.statusCode).toBe(403);
+    expect(third.json().error).toBe("device limit reached");
+
+    // Already-bound device still works even when at the limit.
+    expect((await pull("device-a")).statusCode).toBe(200);
+
+    const unbind = await server.inject({
+      method: "DELETE",
+      url: `/api/admin/tokens/${token.id}/devices/device-a`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(unbind.statusCode).toBe(200);
+
+    // Freed a seat, so the new device can bind now.
+    expect((await pull("device-c")).statusCode).toBe(200);
+
+    const listed = await server.inject({
+      method: "GET",
+      url: "/api/admin/tokens",
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    const listedToken = listed
+      .json<{ tokens: Array<{ id: string; boundDevices: Array<{ deviceId: string }> }> }>()
+      .tokens.find((item) => item.id === token.id);
+    const boundIds = (listedToken?.boundDevices ?? []).map((device) => device.deviceId).sort();
+    expect(boundIds).toEqual(["device-b", "device-c"]);
+  });
 });
 
 async function login(server: ReturnType<typeof buildAdminServer>): Promise<string> {

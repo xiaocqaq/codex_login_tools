@@ -18,6 +18,7 @@ import {
   NMessageProvider,
   NModal,
   NPopconfirm,
+  NPopover,
   NSelect,
   NSpace,
   NStatistic,
@@ -57,6 +58,13 @@ interface RemoteConfig {
   defaultRouteId: string;
 }
 
+interface BoundDevice {
+  deviceId: string;
+  name: string;
+  firstSeenAt: string;
+  lastSeenAt: string;
+}
+
 interface TokenRow {
   id: string;
   name: string;
@@ -65,6 +73,8 @@ interface TokenRow {
   tokenPreview: string;
   enabled: boolean;
   allowedRouteIds?: string[];
+  deviceLimit?: number;
+  boundDevices?: BoundDevice[];
   lastUsedAt?: string;
   inputTokens: number;
   outputTokens: number;
@@ -449,6 +459,30 @@ const App = {
       }
     }
 
+    async function setTokenDeviceLimit(row: TokenRow, limit: number | null) {
+      try {
+        await store.api(`/api/admin/tokens/${row.id}`, {
+          method: "PATCH",
+          body: { deviceLimit: Math.max(0, Math.floor(limit ?? 0)) },
+        });
+        await store.loadAll();
+      } catch (error) {
+        message.error(error instanceof Error ? error.message : "设备上限保存失败");
+      }
+    }
+
+    async function unbindDevice(row: TokenRow, device: BoundDevice) {
+      try {
+        await store.api(`/api/admin/tokens/${row.id}/devices/${encodeURIComponent(device.deviceId)}`, {
+          method: "DELETE",
+        });
+        await store.loadAll();
+        message.success("设备已解绑");
+      } catch (error) {
+        message.error(error instanceof Error ? error.message : "解绑失败");
+      }
+    }
+
     function normalizeProviderPriorities() {
       if (!store.config) return [];
       const providerRank = new Map(store.config.providers.map((provider, index) => [provider.id, index]));
@@ -764,6 +798,64 @@ const App = {
           }),
       },
       { title: "备注", key: "note" },
+      {
+        title: "设备上限",
+        key: "deviceLimit",
+        render: (row) =>
+          h(NInputNumber, {
+            size: "small",
+            min: 0,
+            style: "width: 110px",
+            value: row.deviceLimit ?? 0,
+            placeholder: "0=不限",
+            onUpdateValue: (value: number | null) => setTokenDeviceLimit(row, value),
+          }),
+      },
+      {
+        title: "已绑设备",
+        key: "boundDevices",
+        render: (row) => {
+          const devices = row.boundDevices ?? [];
+          const limit = row.deviceLimit ?? 0;
+          const summary = `${devices.length}${limit > 0 ? ` / ${limit}` : ""}`;
+          if (!devices.length) {
+            return h("span", { class: "status" }, summary);
+          }
+
+          return h(
+            NPopover,
+            { trigger: "click", placement: "bottom" },
+            {
+              trigger: () => h(NButton, { size: "small", text: true, type: "primary" }, () => summary),
+              default: () =>
+                h(
+                  "div",
+                  { class: "device-list" },
+                  devices.map((device) =>
+                    h("div", { class: "device-row", key: device.deviceId }, [
+                      h("div", { class: "device-main" }, [
+                        h("strong", null, device.name || device.deviceId),
+                        h("span", null, `最近使用：${formatDate(device.lastSeenAt)}`),
+                      ]),
+                      h(
+                        NPopconfirm,
+                        {
+                          positiveText: "确认",
+                          negativeText: "取消",
+                          onPositiveClick: () => unbindDevice(row, device),
+                        },
+                        {
+                          trigger: () => h(NButton, { size: "small", tertiary: true, type: "error" }, () => "解绑"),
+                          default: () => `解绑设备「${device.name || device.deviceId}」？该设备下次将无法使用此令牌。`,
+                        },
+                      ),
+                    ]),
+                  ),
+                ),
+            },
+          );
+        },
+      },
       {
         title: "操作",
         key: "actions",
@@ -1420,6 +1512,7 @@ createApp(App)
   .component("NMessageProvider", NMessageProvider)
   .component("NModal", NModal)
   .component("NPopconfirm", NPopconfirm)
+  .component("NPopover", NPopover)
   .component("NSelect", NSelect)
   .component("NSpace", NSpace)
   .component("NStatistic", NStatistic)

@@ -622,3 +622,38 @@ body {
   margin: 14px 0 8px;
 }
 
+.device-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 260px;
+  max-width: 360px;
+}
+
+.device-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.device-main {
+  min-width: 0;
+}
+
+.device-main strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-strong);
+  font-size: 14px;
+}
+
+.device-main span {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+

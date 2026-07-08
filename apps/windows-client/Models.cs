@@ -62,6 +62,7 @@ public sealed class AppSettings
     public string ClientToken { get; set; } = "";
     public string GitHubProxyUrl { get; set; } = "";
     public int GatewayPort { get; set; } = 17861;
+    public string DeviceId { get; set; } = "";
 }
 
 public sealed class UsageCounters

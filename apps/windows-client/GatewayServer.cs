@@ -41,6 +41,7 @@ public sealed class GatewayServer
     {
         var request = new HttpRequestMessage(HttpMethod.Get, BuildConfigUrl(_settings.ServerUrl));
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _settings.ClientToken);
+        AddDeviceHeaders(request);
         using var response = await _client.SendAsync(request);
         var body = await response.Content.ReadAsStringAsync();
         if (!response.IsSuccessStatusCode)
@@ -274,6 +275,21 @@ public sealed class GatewayServer
         return (matching.Count > 0 ? matching : enabled).OrderByDescending(route => route.Priority);
     }
 
+    private static void AddDeviceHeaders(HttpRequestMessage request)
+    {
+        try
+        {
+            request.Headers.TryAddWithoutValidation("x-device-id", DeviceIdentity.DeviceId);
+            request.Headers.TryAddWithoutValidation(
+                "x-device-name",
+                Uri.EscapeDataString(DeviceIdentity.DeviceName));
+        }
+        catch (Exception error)
+        {
+            ClientLog.Write("add device headers failed: " + error.Message);
+        }
+    }
+
     private static string BuildConfigUrl(string serverUrl)
     {
         var trimmed = serverUrl.Trim().TrimEnd('/');
@@ -293,6 +309,11 @@ public sealed class GatewayServer
         if (error.Equals("no model authorized", StringComparison.OrdinalIgnoreCase))
         {
             return "当前令牌没有可用服务商或模型权限，请联系管理员调整。";
+        }
+
+        if (error.Equals("device limit reached", StringComparison.OrdinalIgnoreCase))
+        {
+            return "该令牌绑定的设备已达上限，本机无法使用，请联系管理员解绑后再试。";
         }
 
         if (statusCode == HttpStatusCode.Unauthorized || statusCode == HttpStatusCode.Forbidden)
@@ -387,6 +408,7 @@ public sealed class GatewayServer
         {
             var request = new HttpRequestMessage(HttpMethod.Post, BuildUsageUrl(_settings.ServerUrl));
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _settings.ClientToken);
+            AddDeviceHeaders(request);
             request.Content = new StringContent(JsonSerializer.Serialize(snapshot), Encoding.UTF8, "application/json");
             using var response = await _client.SendAsync(request).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)

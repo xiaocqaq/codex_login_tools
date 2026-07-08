@@ -12,12 +12,12 @@
 
 ## 当前 Windows 客户端
 
-当前版本：`0.2.0`
+当前版本：`0.2.1`
 
 打包产物：
 
 ```text
-apps/windows-client/release-0.2.0/CodexProxy.exe
+apps/windows-client/release-0.2.1/CodexProxy.exe
 ```
 
 主要能力：
