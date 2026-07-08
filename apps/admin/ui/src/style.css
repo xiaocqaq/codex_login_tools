@@ -52,23 +52,21 @@ body {
 .header {
   width: min(1860px, calc(100% - 96px));
   margin: 0 auto;
-  padding: 12px 0 14px;
+  min-height: 100px;
+  padding: 0 22px 0 36px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  background: transparent;
+  border: 1px solid var(--line);
+  background: var(--panel);
 }
 
 .brand-title {
   flex: 1 1 auto;
   max-width: 1000px;
-  min-height: 68px;
   display: flex;
   align-items: center;
-  padding: 0 36px;
-  border: 1px solid var(--line);
-  background: var(--panel);
   color: var(--text-strong);
   font-size: 30px;
   font-weight: 700;
@@ -77,11 +75,7 @@ body {
 
 .header-actions {
   width: auto;
-  min-height: 68px;
-  padding: 0 14px;
   justify-content: flex-end;
-  border: 1px solid var(--line);
-  background: var(--panel);
 }
 
 .top-setting {
@@ -475,6 +469,19 @@ body {
 @media (max-width: 720px) {
   .header {
     width: min(100% - 24px, 1240px);
+    min-height: auto;
+    align-items: flex-start;
+    flex-direction: column;
+    justify-content: flex-start;
+    padding: 18px;
+  }
+
+  .brand-title {
+    font-size: 26px;
+  }
+
+  .header-actions {
+    width: 100%;
     justify-content: flex-start;
   }
 
