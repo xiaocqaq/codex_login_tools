@@ -189,6 +189,114 @@ const App = {
     const clientReleaseFileName = ref("");
     const installerUploadProgress = ref(0);
     const clientReleaseUploadProgress = ref(0);
+    const enabledTokenCount = computed(() => store.dashboard.tokens.filter((token) => token.enabled).length);
+    const disabledTokenCount = computed(() => store.dashboard.tokens.filter((token) => !token.enabled).length);
+    const enabledProviderCount = computed(() => store.config?.providers.filter((provider) => provider.enabled).length ?? 0);
+    const enabledRouteCount = computed(() => {
+      if (!store.config) return 0;
+      return store.config.routes.filter((route) => {
+        const provider = store.config?.providers.find((item) => item.id === route.providerId);
+        return route.enabled && provider?.enabled;
+      }).length;
+    });
+    const primaryRoutes = computed(() => {
+      if (!store.config) return [];
+      return [...store.config.routes]
+        .filter((route) => {
+          const provider = store.config?.providers.find((item) => item.id === route.providerId);
+          return route.enabled && provider?.enabled;
+        })
+        .sort((left, right) => right.priority - left.priority)
+        .slice(0, 4)
+        .map((route) => {
+          const provider = store.config?.providers.find((item) => item.id === route.providerId);
+          return {
+            id: route.id,
+            label: `${route.matchModel || "*"} -> ${route.upstreamModel || "未填写实际模型"}`,
+            providerName: provider?.name || route.providerId,
+            priority: route.priority,
+          };
+        });
+    });
+    const clientReleaseSourceText = computed(() => packageSourceText(store.clientRelease));
+    const installerSourceText = computed(() => packageSourceText(store.installer));
+    const clientReleaseHealth = computed(() => {
+      if (!store.clientRelease.uploaded) {
+        return {
+          type: "error" as const,
+          title: "未配置客户端更新包",
+          detail: "0.1.11 客户端无法发现新版本。请上传 exe 或填写下载地址。",
+        };
+      }
+
+      if (!store.clientRelease.version) {
+        return {
+          type: "warning" as const,
+          title: "更新包缺少版本号",
+          detail: "客户端只会在服务端版本号高于本机版本时更新。",
+        };
+      }
+
+      return {
+        type: "success" as const,
+        title: `已发布 ${store.clientRelease.version}`,
+        detail: `下载来源：${clientReleaseSourceText.value}。启用令牌可检查并下载此版本。`,
+      };
+    });
+    const tokenHealth = computed(() => {
+      if (!store.dashboard.tokens.length) {
+        return {
+          type: "warning" as const,
+          title: "还没有客户端令牌",
+          detail: "客户端没有可填写的 Token，无法启动代理或检查更新。",
+        };
+      }
+
+      if (!enabledTokenCount.value) {
+        return {
+          type: "error" as const,
+          title: "所有令牌均已停用",
+          detail: "客户端请求更新接口会返回 token disabled，看起来就像没有更新。",
+        };
+      }
+
+      if (disabledTokenCount.value) {
+        return {
+          type: "warning" as const,
+          title: `${disabledTokenCount.value} 个令牌已停用`,
+          detail: "这些客户端无法检查更新，也无法正常代理请求。",
+        };
+      }
+
+      return {
+        type: "success" as const,
+        title: `${enabledTokenCount.value} 个令牌可用`,
+        detail: "启用令牌可以检查客户端更新、下载安装包并启动代理。",
+      };
+    });
+    const routeHealth = computed(() => {
+      if (!enabledProviderCount.value) {
+        return {
+          type: "error" as const,
+          title: "没有启用的服务商",
+          detail: "客户端即使启动代理，也没有可用上游。",
+        };
+      }
+
+      if (!enabledRouteCount.value) {
+        return {
+          type: "error" as const,
+          title: "没有启用的模型映射",
+          detail: "请至少启用一条模型映射，例如 codex-best -> 实际上游模型。",
+        };
+      }
+
+      return {
+        type: "success" as const,
+        title: `${enabledProviderCount.value} 个服务商 / ${enabledRouteCount.value} 条映射可用`,
+        detail: "客户端请求会按优先级选择启用的模型映射。",
+      };
+    });
 
     async function doLogin() {
       try {
@@ -513,6 +621,23 @@ const App = {
         key: "enabled",
         render: (row) => h(NTag, { type: row.enabled ? "success" : "error" }, () => row.enabled ? "启用" : "停用"),
       },
+      {
+        title: "更新权限",
+        key: "updateAccess",
+        render: (row) =>
+          h(
+            "div",
+            { class: "diagnostic-cell" },
+            [
+              h(NTag, { type: row.enabled ? "success" : "error" }, () => row.enabled ? "可检查更新" : "会被拒绝"),
+              h(
+                "span",
+                { class: "muted-line" },
+                row.enabled ? "客户端可拉取版本信息" : "更新接口返回 token disabled",
+              ),
+            ],
+          ),
+      },
       { title: "备注", key: "note" },
       {
         title: "操作",
@@ -564,16 +689,25 @@ const App = {
       installerFileName,
       clientReleaseDownloadUrl,
       clientReleaseFileName,
+      clientReleaseHealth,
+      clientReleaseSourceText,
       installerUploadProgress,
+      installerSourceText,
       clientReleaseUploadProgress,
       deleteToken,
       doLogin,
+      disabledTokenCount,
+      enabledProviderCount,
+      enabledRouteCount,
+      enabledTokenCount,
       expandedModelProviderIds,
       expandedProviderIds,
       loginForm,
       newToken,
       overviewColumns,
+      primaryRoutes,
       refresh,
+      routeHealth,
       routesForProvider,
       saveConfig,
       setTokenEnabled,
@@ -581,6 +715,7 @@ const App = {
       store,
       tokenColumns,
       tokenForm,
+      tokenHealth,
       toggleModelProvider,
       toggleProvider,
       isModelProviderExpanded,
@@ -629,12 +764,67 @@ const App = {
             <template v-else>
               <n-tabs v-model:value="activeTab" type="segment" animated>
                 <n-tab-pane name="overview" tab="总览">
-                  <n-grid :cols="4" :x-gap="12" :y-gap="12" responsive="screen">
+                  <n-grid cols="1 s:2 m:4" :x-gap="12" :y-gap="12" responsive="screen">
                     <n-grid-item><n-card><n-statistic label="总 Token" :value="store.dashboard.totals.totalTokens" /></n-card></n-grid-item>
                     <n-grid-item><n-card><n-statistic label="请求数" :value="store.dashboard.totals.requestCount" /></n-card></n-grid-item>
                     <n-grid-item><n-card><n-statistic label="输入 Token" :value="store.dashboard.totals.inputTokens" /></n-card></n-grid-item>
                     <n-grid-item><n-card><n-statistic label="输出 Token" :value="store.dashboard.totals.outputTokens" /></n-card></n-grid-item>
                   </n-grid>
+                  <n-grid class="ops-grid" cols="1 m:3" :x-gap="12" :y-gap="12" responsive="screen">
+                    <n-grid-item>
+                      <n-card class="ops-card">
+                        <div class="ops-card__head">
+                          <span>客户端更新</span>
+                          <n-tag :type="clientReleaseHealth.type">{{ clientReleaseHealth.type === 'success' ? '正常' : '需处理' }}</n-tag>
+                        </div>
+                        <strong>{{ clientReleaseHealth.title }}</strong>
+                        <p>{{ clientReleaseHealth.detail }}</p>
+                        <div class="ops-meta">
+                          <span>来源：{{ clientReleaseSourceText }}</span>
+                          <span>安装包：{{ installerSourceText }}</span>
+                        </div>
+                        <n-button text type="primary" @click="activeTab = 'installer'">查看安装包</n-button>
+                      </n-card>
+                    </n-grid-item>
+                    <n-grid-item>
+                      <n-card class="ops-card">
+                        <div class="ops-card__head">
+                          <span>Token 诊断</span>
+                          <n-tag :type="tokenHealth.type">{{ tokenHealth.type === 'success' ? '可用' : '需处理' }}</n-tag>
+                        </div>
+                        <strong>{{ tokenHealth.title }}</strong>
+                        <p>{{ tokenHealth.detail }}</p>
+                        <div class="ops-meta">
+                          <span>启用：{{ enabledTokenCount }}</span>
+                          <span>停用：{{ disabledTokenCount }}</span>
+                        </div>
+                        <n-button text type="primary" @click="activeTab = 'tokens'">查看令牌</n-button>
+                      </n-card>
+                    </n-grid-item>
+                    <n-grid-item>
+                      <n-card class="ops-card">
+                        <div class="ops-card__head">
+                          <span>代理路由</span>
+                          <n-tag :type="routeHealth.type">{{ routeHealth.type === 'success' ? '可用' : '需处理' }}</n-tag>
+                        </div>
+                        <strong>{{ routeHealth.title }}</strong>
+                        <p>{{ routeHealth.detail }}</p>
+                        <div class="ops-meta">
+                          <span>服务商：{{ enabledProviderCount }}</span>
+                          <span>映射：{{ enabledRouteCount }}</span>
+                        </div>
+                        <n-button text type="primary" @click="activeTab = 'models'">查看模型</n-button>
+                      </n-card>
+                    </n-grid-item>
+                  </n-grid>
+                  <n-card v-if="primaryRoutes.length" class="section-card" title="当前可用模型映射">
+                    <div class="route-digest">
+                      <div v-for="route in primaryRoutes" :key="route.id" class="route-digest__item">
+                        <strong>{{ route.label }}</strong>
+                        <span>{{ route.providerName }}，优先级 {{ route.priority }}</span>
+                      </div>
+                    </div>
+                  </n-card>
                   <n-card class="section-card" title="用量最高令牌">
                     <n-data-table :columns="overviewColumns" :data="store.dashboard.tokens.slice(0, 8)" />
                   </n-card>
@@ -1009,10 +1199,19 @@ function validateConfig(config: RemoteConfig): string | null {
 }
 
 function formatBytes(value: number): string {
+  if (!value) return "-";
   if (value < 1024) return `${value} B`;
   if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
   if (value < 1024 * 1024 * 1024) return `${(value / 1024 / 1024).toFixed(1)} MB`;
   return `${(value / 1024 / 1024 / 1024).toFixed(1)} GB`;
+}
+
+function packageSourceText(status: InstallerStatus | ClientReleaseStatus): string {
+  if (!status.uploaded) return "未配置";
+  if (status.hasUrl && status.hasFile) return status.preferred === "file" ? "服务端文件优先" : "GitHub URL 优先";
+  if (status.hasUrl || status.downloadUrl) return "GitHub URL";
+  if (status.hasFile) return "服务端文件";
+  return "状态异常";
 }
 
 function formatDate(value?: string): string {

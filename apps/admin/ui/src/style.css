@@ -58,6 +58,89 @@ body {
   margin-top: 16px;
 }
 
+.ops-grid {
+  margin-top: 16px;
+}
+
+.ops-card {
+  height: 100%;
+}
+
+.ops-card .n-card__content {
+  display: flex;
+  min-height: 188px;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ops-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #40525c;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ops-card strong {
+  display: block;
+  color: #172026;
+  font-size: 18px;
+  line-height: 1.35;
+}
+
+.ops-card p {
+  min-height: 42px;
+  margin: 0;
+  color: #5c6b74;
+  line-height: 1.55;
+}
+
+.ops-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.ops-meta span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px solid #dce8ec;
+  border-radius: 4px;
+  background: #f7fbfc;
+  color: #40525c;
+  font-size: 12px;
+}
+
+.route-digest {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.route-digest__item {
+  padding: 12px;
+  border: 1px solid #e2e8ee;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.route-digest__item strong,
+.route-digest__item span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.route-digest__item span {
+  margin-top: 6px;
+  color: #64727c;
+  font-size: 13px;
+}
+
 .save-button {
   margin-top: 16px;
 }
@@ -214,6 +297,13 @@ body {
   word-break: break-all;
 }
 
+.diagnostic-cell {
+  display: flex;
+  min-width: 160px;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .upload-button {
   position: relative;
   display: inline-flex;
@@ -321,6 +411,10 @@ body {
   .route-quick-controls {
     width: 100%;
     justify-content: flex-start;
+  }
+
+  .route-digest {
+    grid-template-columns: 1fr;
   }
 }
 
