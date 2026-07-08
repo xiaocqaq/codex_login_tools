@@ -699,10 +699,17 @@ const App = {
                     </n-alert>
                     <n-space v-if="store.config.providers.length" vertical size="large">
                       <n-card v-for="provider in store.config.providers" :key="provider.id" embedded class="provider-model-card">
-                        <n-space justify="space-between" align="center" class="card-title-row">
+                        <n-space justify="space-between" align="center" class="card-title-row provider-model-top">
                           <div class="provider-summary">
                             <h3>{{ provider.name || '未命名服务商' }}</h3>
                             <p>{{ routesForProvider(provider.id).length }} 个模型映射，服务商{{ provider.enabled ? '已启用' : '已停用' }}</p>
+                          </div>
+                          <div v-if="routesForProvider(provider.id).length" class="provider-route-strip">
+                            <div v-for="route in routesForProvider(provider.id)" :key="route.id" class="provider-route-inline">
+                              <span class="inline-priority-label">优先级</span>
+                              <n-input-number v-model:value="route.priority" size="small" style="width: 88px" />
+                              <n-switch v-model:value="route.enabled"><template #checked>启用</template><template #unchecked>停用</template></n-switch>
+                            </div>
                           </div>
                           <n-space align="center">
                             <n-button secondary @click="addRoute(provider.id)">新增模型</n-button>
@@ -714,36 +721,30 @@ const App = {
 
                         <div v-if="isModelProviderExpanded(provider.id)" class="fold-body">
                           <n-empty v-if="!routesForProvider(provider.id).length" description="该服务商暂无模型映射" />
-                          <n-space v-else vertical size="medium">
-                            <n-card v-for="route in routesForProvider(provider.id)" :key="route.id" embedded class="route-card">
-                              <n-space justify="space-between" align="center" class="card-title-row">
-                                <h3>{{ route.matchModel || '未命名模型' }} -> {{ route.upstreamModel || '未填写实际模型' }}</h3>
-                                <n-space align="center">
-                                  <n-switch v-model:value="route.enabled"><template #checked>启用</template><template #unchecked>停用</template></n-switch>
+                          <n-space v-else vertical size="small">
+                            <div v-for="route in routesForProvider(provider.id)" :key="route.id" class="route-row">
+                              <div class="route-detail-body">
+                                <n-space justify="space-between" align="center" class="route-edit-title">
+                                  <strong>{{ route.matchModel || '未命名模型' }} -> {{ route.upstreamModel || '未填写实际模型' }}</strong>
                                   <n-popconfirm positive-text="确认" negative-text="取消" @positive-click="deleteRoute(route)">
                                     <template #trigger><n-button tertiary type="error">删除</n-button></template>
                                     删除这条模型映射？
                                   </n-popconfirm>
                                 </n-space>
-                              </n-space>
-                              <n-grid :cols="3" :x-gap="12" responsive="screen">
-                                <n-grid-item>
-                                  <n-form-item label="客户端模型名">
-                                    <n-input v-model:value="route.matchModel" placeholder="codex-best 或 *" />
-                                  </n-form-item>
-                                </n-grid-item>
-                                <n-grid-item>
-                                  <n-form-item label="服务商实际模型">
-                                    <n-input v-model:value="route.upstreamModel" placeholder="例如 deepseek-reasoner" />
-                                  </n-form-item>
-                                </n-grid-item>
-                                <n-grid-item>
-                                  <n-form-item label="优先级">
-                                    <n-input-number v-model:value="route.priority" style="width: 100%" />
-                                  </n-form-item>
-                                </n-grid-item>
-                              </n-grid>
-                            </n-card>
+                                <n-grid :cols="2" :x-gap="12" responsive="screen">
+                                  <n-grid-item>
+                                    <n-form-item label="客户端模型名">
+                                      <n-input v-model:value="route.matchModel" placeholder="codex-best 或 *" />
+                                    </n-form-item>
+                                  </n-grid-item>
+                                  <n-grid-item>
+                                    <n-form-item label="服务商实际模型">
+                                      <n-input v-model:value="route.upstreamModel" placeholder="例如 deepseek-reasoner" />
+                                    </n-form-item>
+                                  </n-grid-item>
+                                </n-grid>
+                              </div>
+                            </div>
                           </n-space>
                         </div>
                       </n-card>

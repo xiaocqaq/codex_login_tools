@@ -178,7 +178,10 @@ async function collectUsage(response: Response, pendingUsage: UsageCounters): Pr
     const contentType = response.headers.get("content-type") ?? "";
     if (contentType.includes("application/json")) {
       const body = (await response.clone().json()) as Record<string, unknown>;
-      usage = parseUsage(body.usage);
+      usage = parseUsage(findUsage(body));
+    } else if (contentType.includes("text/event-stream")) {
+      const body = await response.clone().text();
+      usage = parseStreamingUsage(body);
     }
   } catch {
     usage = emptyUsage();
@@ -192,14 +195,75 @@ async function collectUsage(response: Response, pendingUsage: UsageCounters): Pr
   });
 }
 
+function parseStreamingUsage(input: string): UsageCounters {
+  let usage = emptyUsage();
+
+  for (const eventData of readServerSentEventData(input)) {
+    if (eventData === "[DONE]") {
+      continue;
+    }
+
+    try {
+      const body = JSON.parse(eventData) as Record<string, unknown>;
+      const parsed = parseUsage(findUsage(body));
+      if (!isEmptyUsage(parsed)) {
+        usage = parsed;
+      }
+    } catch {
+      // Ignore non-JSON event payloads.
+    }
+  }
+
+  return usage;
+}
+
+function readServerSentEventData(input: string): string[] {
+  const events: string[] = [];
+  let current: string[] = [];
+
+  for (const line of input.split(/\r?\n/)) {
+    if (!line) {
+      if (current.length > 0) {
+        events.push(current.join("\n"));
+        current = [];
+      }
+      continue;
+    }
+
+    if (line.toLowerCase().startsWith("data:")) {
+      current.push(line.slice("data:".length).trimStart());
+    }
+  }
+
+  if (current.length > 0) {
+    events.push(current.join("\n"));
+  }
+
+  return events;
+}
+
+function findUsage(input: Record<string, unknown> | undefined): unknown {
+  const response = input?.response as Record<string, unknown> | undefined;
+  const message = input?.message as Record<string, unknown> | undefined;
+  const data = input?.data as Record<string, unknown> | undefined;
+  return input?.usage ?? response?.usage ?? message?.usage ?? data?.usage;
+}
+
 function parseUsage(input: unknown): UsageCounters {
   const usage = input as Record<string, unknown> | undefined;
   const details = usage?.input_tokens_details as Record<string, unknown> | undefined;
+  const promptDetails = usage?.prompt_tokens_details as Record<string, unknown> | undefined;
+  const inputTokens = numberOrZero(usage?.input_tokens) || numberOrZero(usage?.prompt_tokens);
+  const outputTokens =
+    numberOrZero(usage?.output_tokens) || numberOrZero(usage?.completion_tokens);
   return {
-    inputTokens: numberOrZero(usage?.input_tokens),
-    outputTokens: numberOrZero(usage?.output_tokens),
-    cachedInputTokens: numberOrZero(details?.cached_tokens),
-    totalTokens: numberOrZero(usage?.total_tokens),
+    inputTokens,
+    outputTokens,
+    cachedInputTokens:
+      numberOrZero(usage?.cached_input_tokens) ||
+      numberOrZero(details?.cached_tokens) ||
+      numberOrZero(promptDetails?.cached_tokens),
+    totalTokens: numberOrZero(usage?.total_tokens) || inputTokens + outputTokens,
     requestCount: 0,
     successCount: 0,
     failureCount: 0,

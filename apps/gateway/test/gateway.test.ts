@@ -262,6 +262,89 @@ describe("gateway proxy", () => {
       failureCount: 0,
     });
   });
+
+  it("accumulates streaming response usage and reports it in a batch", async () => {
+    let reportedUsage: Record<string, unknown> | undefined;
+    const upstream = buildTestServer(() => {
+      const body = [
+        'event: response.output_text.delta',
+        'data: {"type":"response.output_text.delta","delta":"hello"}',
+        '',
+        'event: response.completed',
+        'data: {"type":"response.completed","response":{"usage":{"input_tokens":13,"output_tokens":9,"total_tokens":22,"input_tokens_details":{"cached_tokens":5}}}}',
+        '',
+        'data: [DONE]',
+        '',
+      ].join("\n");
+      return new Response(body, {
+        headers: { "content-type": "text/event-stream" },
+      });
+    });
+    servers.push(upstream);
+    await upstream.listen({ host: "127.0.0.1", port: 0 });
+
+    const admin = buildTestServer(async (request) => {
+      if (new URL(request.url).pathname === "/api/gateway/usage") {
+        reportedUsage = await request.json();
+        return Response.json({ ok: true });
+      }
+
+      return Response.json({
+        version: 1,
+        pollIntervalSeconds: 10,
+        providers: [
+          {
+            id: "primary",
+            name: "Primary",
+            baseUrl: `http://127.0.0.1:${upstream.server.address().port}/v1`,
+            apiKey: "sk-upstream",
+            enabled: true,
+          },
+        ],
+        routes: [
+          {
+            id: "default",
+            providerId: "primary",
+            matchModel: "*",
+            upstreamModel: "upstream-model",
+            enabled: true,
+            priority: 100,
+          },
+        ],
+        defaultRouteId: "default",
+      });
+    });
+    servers.push(admin);
+    await admin.listen({ host: "127.0.0.1", port: 0 });
+
+    const gateway = buildGatewayServer({
+      configUrl: `http://127.0.0.1:${admin.server.address().port}/api/gateway/config`,
+      usageUrl: `http://127.0.0.1:${admin.server.address().port}/api/gateway/usage`,
+      clientToken: "client-token",
+      fetchImpl: fetch,
+    });
+    servers.push(gateway);
+    await gateway.refreshConfig();
+
+    const response = await gateway.inject({
+      method: "POST",
+      url: "/v1/responses",
+      payload: { model: "codex-best", input: "hello", stream: true },
+    });
+    expect(response.statusCode).toBe(200);
+
+    await gateway.flushUsage();
+
+    expect(reportedUsage).toMatchObject({
+      inputTokens: 13,
+      outputTokens: 9,
+      cachedInputTokens: 5,
+      totalTokens: 22,
+      requestCount: 1,
+      successCount: 1,
+      failureCount: 0,
+    });
+  });
 });
 
 function buildTestServer(handler: (request: Request) => Promise<Response> | Response) {

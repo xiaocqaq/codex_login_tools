@@ -63,7 +63,17 @@ body {
 }
 
 .card-title-row {
-  margin-bottom: 8px;
+  margin-bottom: 0;
+}
+
+.provider-model-top {
+  flex-wrap: nowrap !important;
+  gap: 12px !important;
+}
+
+.route-top-row {
+  gap: 16px;
+  margin: 0;
 }
 
 .card-title-row h3 {
@@ -74,6 +84,7 @@ body {
 }
 
 .provider-summary {
+  flex: 0 0 155px;
   min-width: 0;
 }
 
@@ -86,15 +97,100 @@ body {
   overflow-wrap: anywhere;
 }
 
+.provider-route-strip {
+  flex: 1 1 auto;
+  min-width: 240px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.provider-route-inline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+  height: 34px;
+  white-space: nowrap;
+}
+
+.provider-route-inline strong {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.inline-priority-label {
+  color: #64727c;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.provider-model-card > .n-card__content {
+  padding-top: 16px;
+  padding-bottom: 16px;
+}
+
+.route-summary {
+  min-width: 0;
+}
+
+.route-summary h3 {
+  font-size: 15px;
+}
+
+.route-summary p {
+  margin: 4px 0 0;
+  color: #64727c;
+  font-size: 13px;
+}
+
+.route-quick-controls {
+  flex: 0 0 auto;
+}
+
+.inline-form-item {
+  margin: 0;
+}
+
+.inline-form-item .n-form-item-label {
+  padding-bottom: 0;
+  font-size: 12px;
+}
+
+.route-detail-body {
+  padding: 12px;
+}
+
+.route-edit-title {
+  margin-bottom: 10px;
+}
+
+.route-edit-title strong {
+  overflow-wrap: anywhere;
+}
+
 .compact-provider-card,
 .provider-model-card,
 .route-card {
   background: rgba(255, 255, 255, 0.72);
 }
 
+.route-row {
+  padding: 0;
+  border: 1px solid #e2e8ee;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
 .fold-body {
-  margin-top: 16px;
-  padding-top: 16px;
+  margin-top: 10px;
+  padding-top: 10px;
   border-top: 1px solid #e2e8ee;
 }
 
@@ -204,6 +300,27 @@ body {
     min-height: auto;
     align-items: flex-start;
     padding-top: 12px;
+  }
+
+  .provider-route-strip {
+    width: 100%;
+    justify-content: flex-start;
+    overflow: visible;
+  }
+
+  .provider-route-inline {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .route-top-row {
+    align-items: flex-start !important;
+    flex-direction: column;
+  }
+
+  .route-quick-controls {
+    width: 100%;
+    justify-content: flex-start;
   }
 }
 

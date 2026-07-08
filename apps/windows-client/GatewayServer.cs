@@ -290,32 +290,121 @@ public sealed class GatewayServer
     {
         try
         {
-            var usage = JsonNode.Parse(responseBytes)?["usage"];
+            var body = Encoding.UTF8.GetString(responseBytes);
+            var usage = ExtractUsageNode(body);
             if (usage == null)
             {
                 return new UsageCounters();
             }
 
-            var input = GetInt(usage, "input_tokens") ?? GetInt(usage, "prompt_tokens") ?? 0;
-            var output = GetInt(usage, "output_tokens") ?? GetInt(usage, "completion_tokens") ?? 0;
-            var cached = GetInt(usage, "cached_input_tokens") ??
-                GetInt(usage?["input_tokens_details"], "cached_tokens") ??
-                GetInt(usage?["prompt_tokens_details"], "cached_tokens") ??
-                0;
-            var total = GetInt(usage, "total_tokens") ?? input + output;
-
-            return new UsageCounters
-            {
-                InputTokens = input,
-                OutputTokens = output,
-                CachedInputTokens = cached,
-                TotalTokens = total
-            };
+            return ParseUsageCounters(usage);
         }
         catch
         {
             return new UsageCounters();
         }
+    }
+
+    private static JsonNode? ExtractUsageNode(string body)
+    {
+        if (TryExtractJsonUsage(body, out var usage))
+        {
+            return usage;
+        }
+
+        JsonNode? lastUsage = null;
+        foreach (var eventData in ReadServerSentEventData(body))
+        {
+            if (eventData == "[DONE]")
+            {
+                continue;
+            }
+
+            if (TryExtractJsonUsage(eventData, out usage))
+            {
+                lastUsage = usage;
+            }
+        }
+
+        return lastUsage;
+    }
+
+    private static bool TryExtractJsonUsage(string json, out JsonNode? usage)
+    {
+        usage = null;
+        try
+        {
+            var root = JsonNode.Parse(json);
+            usage = FindUsageNode(root);
+            return usage != null;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static JsonNode? FindUsageNode(JsonNode? node)
+    {
+        return node?["usage"] ??
+            node?["response"]?["usage"] ??
+            node?["message"]?["usage"] ??
+            node?["data"]?["usage"];
+    }
+
+    private static IEnumerable<string> ReadServerSentEventData(string body)
+    {
+        using var reader = new StringReader(body);
+        var data = new StringBuilder();
+        string? line;
+
+        while ((line = reader.ReadLine()) != null)
+        {
+            if (line.Length == 0)
+            {
+                if (data.Length > 0)
+                {
+                    yield return data.ToString();
+                    data.Clear();
+                }
+                continue;
+            }
+
+            if (!line.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (data.Length > 0)
+            {
+                data.Append('\n');
+            }
+            data.Append(line["data:".Length..].TrimStart());
+        }
+
+        if (data.Length > 0)
+        {
+            yield return data.ToString();
+        }
+    }
+
+    private static UsageCounters ParseUsageCounters(JsonNode usage)
+    {
+        var input = GetInt(usage, "input_tokens") ?? GetInt(usage, "prompt_tokens") ?? 0;
+        var output = GetInt(usage, "output_tokens") ?? GetInt(usage, "completion_tokens") ?? 0;
+        var cached = GetInt(usage, "cached_input_tokens") ??
+            GetInt(usage?["input_tokens_details"], "cached_tokens") ??
+            GetInt(usage?["prompt_tokens_details"], "cached_tokens") ??
+            0;
+        var total = GetInt(usage, "total_tokens") ?? input + output;
+
+        return new UsageCounters
+        {
+            InputTokens = input,
+            OutputTokens = output,
+            CachedInputTokens = cached,
+            TotalTokens = total
+        };
     }
 
     private static int? GetInt(JsonNode? node, string propertyName)
