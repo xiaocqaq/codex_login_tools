@@ -20,6 +20,7 @@ static class Program
         try
         {
             ClientLog.Write("starting");
+            ClientUpdater.CleanupVisibleBackup();
             ApplicationConfiguration.Initialize();
             Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
             Application.ThreadException += (_, error) => ClientLog.Write(error.Exception.ToString());

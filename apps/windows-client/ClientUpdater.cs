@@ -89,6 +89,24 @@ public static class ClientUpdater
         StartReplacementScript(packagePath, new FileInfo(packagePath).Length);
     }
 
+    public static void CleanupVisibleBackup()
+    {
+        try
+        {
+            var currentPath = Environment.ProcessPath ?? Application.ExecutablePath;
+            var visibleBackup = currentPath + ".bak";
+            if (File.Exists(visibleBackup))
+            {
+                File.Delete(visibleBackup);
+                ClientLog.Write("removed legacy visible update backup: " + visibleBackup);
+            }
+        }
+        catch (Exception error)
+        {
+            ClientLog.Write("remove legacy visible update backup failed: " + error.Message);
+        }
+    }
+
     private static async Task DownloadToFileAsync(
         IReadOnlyList<DownloadCandidate> candidates,
         string packagePath,
@@ -165,8 +183,34 @@ function Write-UpdateLog([string]$Message) {
   if ($dir) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
   Add-Content -LiteralPath $LogPath -Value ("[{0:yyyy-MM-dd HH:mm:ss}] update: {1}" -f (Get-Date), $Message)
 }
+function Remove-Quiet([string]$Path) {
+  try {
+    if ($Path -and (Test-Path -LiteralPath $Path)) {
+      Remove-Item -LiteralPath $Path -Force
+    }
+  } catch {
+    Write-UpdateLog "cleanup failed: $Path - $($_.Exception.Message)"
+  }
+}
+function Restore-Backup([string]$Backup, [string]$Target) {
+  if (!(Test-Path -LiteralPath $Backup)) {
+    return $false
+  }
+
+  try {
+    Copy-Item -LiteralPath $Backup -Destination $Target -Force
+    Write-UpdateLog "rollback complete: $Target"
+    return $true
+  } catch {
+    Write-UpdateLog "rollback failed: $($_.Exception.Message)"
+    return $false
+  }
+}
 
 $ErrorActionPreference = 'Stop'
+$updateDir = Split-Path -Parent $Source
+$backup = Join-Path $updateDir ((Split-Path -Leaf $Target) + ".rollback.bak")
+$legacyBackup = "$Target.bak"
 try {
   Write-UpdateLog "waiting for process $ProcessId"
   Wait-Process -Id $ProcessId -ErrorAction SilentlyContinue
@@ -177,12 +221,18 @@ try {
     throw "Downloaded update size mismatch. Expected $ExpectedSize, got $($sourceItem.Length)."
   }
 
-  $backup = "$Target.bak"
+  Remove-Quiet $legacyBackup
+  if (Test-Path -LiteralPath $Target) {
+    Copy-Item -LiteralPath $Target -Destination $backup -Force
+    try {
+      [System.IO.File]::SetAttributes($backup, [System.IO.FileAttributes]::Hidden)
+    } catch {
+      Write-UpdateLog "hide rollback backup failed: $($_.Exception.Message)"
+    }
+  }
+
   for ($attempt = 1; $attempt -le 20; $attempt++) {
     try {
-      if (Test-Path -LiteralPath $Target) {
-        Copy-Item -LiteralPath $Target -Destination $backup -Force
-      }
       Copy-Item -LiteralPath $Source -Destination $Target -Force
       $targetItem = Get-Item -LiteralPath $Target
       if ($targetItem.Length -ne $sourceItem.Length) {
@@ -190,10 +240,14 @@ try {
       }
 
       Write-UpdateLog "replacement complete: $Target"
+      Remove-Quiet $backup
+      Remove-Quiet $Source
+      Remove-Quiet $legacyBackup
       Start-Process -FilePath $Target
       exit 0
     } catch {
       Write-UpdateLog "replacement attempt $attempt failed: $($_.Exception.Message)"
+      Restore-Backup $backup $Target | Out-Null
       Start-Sleep -Milliseconds 500
     }
   }
@@ -201,6 +255,12 @@ try {
   throw "Replacement failed after retries."
 } catch {
   Write-UpdateLog "update failed: $($_.Exception.Message)"
+  $restored = Restore-Backup $backup $Target
+  if ($restored) {
+    Remove-Quiet $backup
+    Remove-Quiet $Source
+  }
+  Remove-Quiet $legacyBackup
   if (Test-Path -LiteralPath $Target) {
     Start-Process -FilePath $Target
   }
