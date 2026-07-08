@@ -33,7 +33,10 @@ public sealed class GatewayServer
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.ClientToken);
         using var response = await _client.SendAsync(request);
         var body = await response.Content.ReadAsStringAsync();
-        if (!response.IsSuccessStatusCode) throw new InvalidOperationException(body);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(BuildFriendlyGatewayError(response.StatusCode, body));
+        }
         _config = JsonSerializer.Deserialize<RemoteConfig>(body) ?? throw new InvalidOperationException("配置为空");
         Status = $"配置已加载：{_config.Providers.Count} 个服务商，{_config.Routes.Count} 条模型映射";
     }
@@ -174,6 +177,36 @@ public sealed class GatewayServer
         return trimmed.EndsWith("/api/gateway/config", StringComparison.OrdinalIgnoreCase)
             ? trimmed
             : $"{trimmed}/api/gateway/config";
+    }
+
+    private static string BuildFriendlyGatewayError(HttpStatusCode statusCode, string body)
+    {
+        var error = TryReadError(body);
+        if (error.Equals("token disabled", StringComparison.OrdinalIgnoreCase))
+        {
+            return "当前令牌已被禁用，请联系管理员启用后再启动代理。";
+        }
+
+        if (statusCode == HttpStatusCode.Unauthorized || statusCode == HttpStatusCode.Forbidden)
+        {
+            return "当前令牌无效或无权限，请检查设置中的 Token。";
+        }
+
+        return string.IsNullOrWhiteSpace(error)
+            ? $"服务端返回异常：{(int)statusCode}"
+            : $"服务端返回异常：{error}";
+    }
+
+    private static string TryReadError(string body)
+    {
+        try
+        {
+            return JsonNode.Parse(body)?["error"]?.GetValue<string>() ?? body;
+        }
+        catch
+        {
+            return body;
+        }
     }
 
     private static string BuildUsageUrl(string serverUrl)

@@ -400,7 +400,7 @@ export function buildAdminServer(options: AdminServerOptions): FastifyInstance {
 
     const status = getFileStatus<InstallerMeta>(options.dataPath, "codex-desktop-installer");
     if (!status.uploaded) {
-      return reply.status(404).send({ error: "codex desktop installer not uploaded" });
+      return reply.status(404).send({ error: "Codex 桌面版安装包未上传" });
     }
     const source = readSourceQuery(request.query);
     if (status.downloadUrl && source !== "file") {
@@ -409,7 +409,7 @@ export function buildAdminServer(options: AdminServerOptions): FastifyInstance {
 
     const paths = getManagedFilePaths(options.dataPath, "codex-desktop-installer");
     if (!existsSync(paths.file)) {
-      return reply.status(404).send({ error: "codex desktop installer file not uploaded" });
+      return reply.status(404).send({ error: "Codex 桌面版安装包文件未上传" });
     }
     reply.header("content-type", "application/octet-stream");
     reply.header("content-length", String(status.size));

@@ -32,7 +32,7 @@ static class Program
         catch (Exception error)
         {
             ClientLog.Write(error.ToString());
-            MessageBox.Show(error.Message, "启动失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            AppDialog.ShowError(null, "启动失败", error.Message);
         }
     }    
 }

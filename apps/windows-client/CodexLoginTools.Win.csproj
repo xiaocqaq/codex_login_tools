@@ -10,7 +10,7 @@
     <AssemblyName>CodexProxy</AssemblyName>
     <Product>Codex 代理</Product>
     <FileDescription>Codex 代理</FileDescription>
-    <Version>0.1.11</Version>
+    <Version>0.1.12</Version>
   </PropertyGroup>
 
   <ItemGroup>

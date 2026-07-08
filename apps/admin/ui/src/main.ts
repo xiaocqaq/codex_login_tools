@@ -390,7 +390,7 @@ const App = {
 
     async function saveInstallerUrl() {
       if (!installerDownloadUrl.value.trim()) {
-        message.error("请填写 Codex Desktop GitHub 下载地址");
+        message.error("请填写 Codex 桌面版 GitHub 下载地址");
         return;
       }
 
@@ -403,7 +403,7 @@ const App = {
           },
         });
         store.installer = body.installer;
-        message.success("Codex Desktop 下载地址已保存");
+        message.success("Codex 桌面版下载地址已保存");
       } catch (error) {
         message.error(error instanceof Error ? error.message : "保存失败");
       }
@@ -773,7 +773,7 @@ const App = {
                 </n-tab-pane>
 
                 <n-tab-pane name="installer" tab="安装包">
-                  <n-card title="Codex Desktop 安装包">
+                  <n-card title="Codex 桌面版安装包">
                     <template #header-extra>
                       <n-space>
                         <label class="upload-button">
@@ -787,7 +787,7 @@ const App = {
                           @positive-click="deleteInstaller"
                         >
                           <template #trigger><n-button tertiary type="error">删除安装包</n-button></template>
-                          删除后，客户端将无法从服务端安装 Codex Desktop。
+                          删除后，客户端将无法从服务端安装 Codex 桌面版。
                         </n-popconfirm>
                       </n-space>
                     </template>
@@ -853,7 +853,7 @@ const App = {
                         </n-popconfirm>
                       </n-space>
                     </n-card>
-                    <n-empty v-else description="暂未配置 Codex Desktop 安装包" />
+                    <n-empty v-else description="暂未配置 Codex 桌面版安装包" />
                   </n-card>
 
                   <n-card class="section-card" title="客户端热更新包">

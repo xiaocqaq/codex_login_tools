@@ -74,7 +74,9 @@ public static class ClientUpdater
         };
     }
 
-    public static async Task DownloadAndApplyAsync(AppSettings settings)
+    public static async Task DownloadAndApplyAsync(
+        AppSettings settings,
+        IProgress<CodexInstallProgress>? progress = null)
     {
         var status = await CheckAsync(settings).ConfigureAwait(false);
         var candidates = BuildDownloadCandidates(status, settings);
@@ -82,7 +84,7 @@ public static class ClientUpdater
         var dir = Path.Combine(Path.GetTempPath(), "CodexLoginTools", "Update");
         Directory.CreateDirectory(dir);
         var packagePath = Path.Combine(dir, "Codex 代理.update.exe");
-        await DownloadToFileAsync(candidates, packagePath, settings.ClientToken).ConfigureAwait(false);
+        await DownloadToFileAsync(candidates, packagePath, settings.ClientToken, progress).ConfigureAwait(false);
 
         StartReplacementScript(packagePath, new FileInfo(packagePath).Length);
     }
@@ -90,13 +92,19 @@ public static class ClientUpdater
     private static async Task DownloadToFileAsync(
         IReadOnlyList<DownloadCandidate> candidates,
         string packagePath,
-        string clientToken)
+        string clientToken,
+        IProgress<CodexInstallProgress>? progress)
     {
         Exception? lastError = null;
         foreach (var candidate in candidates)
         {
             try
             {
+                progress?.Report(new CodexInstallProgress
+                {
+                    Message = $"正在连接下载源：{candidate.Uri.Host}",
+                    Percent = 0
+                });
                 using var request = new HttpRequestMessage(HttpMethod.Get, candidate.Uri);
                 if (candidate.SendToken)
                 {
@@ -106,7 +114,7 @@ public static class ClientUpdater
                 using var response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
                 await using var target = File.Create(packagePath);
-                await BinaryDownloadGuard.CopyVerifiedAsync(response.Content, target).ConfigureAwait(false);
+                await BinaryDownloadGuard.CopyVerifiedAsync(response.Content, target, progress).ConfigureAwait(false);
                 return;
             }
             catch (Exception error)

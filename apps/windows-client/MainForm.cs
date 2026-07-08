@@ -50,7 +50,7 @@ public sealed class MainForm : Form
         BuildTray();
         BuildUi();
         UpdateGatewayStatus();
-        _codexStatus.Text = "正在检测 Codex Desktop。";
+        _codexStatus.Text = "正在检测 Codex 桌面版。";
 
         Shown += async (_, _) =>
         {
@@ -107,7 +107,7 @@ public sealed class MainForm : Form
             AutoSize = false,
             Location = new Point(98, 106),
             Size = new Size(410, 28),
-            Text = "一键为本机 Codex Desktop 接入代理。",
+            Text = "一键为本机 Codex 桌面版接入代理。",
             ForeColor = Muted,
             BackColor = Background
         });
@@ -191,7 +191,7 @@ public sealed class MainForm : Form
                 ReadSettings();
                 if (string.IsNullOrWhiteSpace(_settings.ClientToken))
                 {
-                    MessageBox.Show("请先在设置中填写客户端 Token。", "缺少 Token", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    AppDialog.ShowWarning(this, "缺少 Token", "请先在设置中填写客户端 Token。");
                     ShowSettingsDialog();
                     return;
                 }
@@ -204,13 +204,10 @@ public sealed class MainForm : Form
 
                 if (!await IsCodexDesktopReadyAsync())
                 {
-                    MessageBox.Show(
-                        "未检测到 Codex Desktop，请在设置中安装桌面版后再启动代理。",
-                        "无法启动代理",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Warning);
-                    ShowSettingsDialog();
-                    return;
+                    if (!await PromptInstallCodexDesktopAsync())
+                    {
+                        return;
+                    }
                 }
 
                 await _gateway.StartAsync(_settings);
@@ -230,7 +227,7 @@ public sealed class MainForm : Form
         }
         catch (Exception error)
         {
-            MessageBox.Show(error.Message, "操作失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            AppDialog.ShowError(this, "操作失败", error.Message);
         }
         finally
         {
@@ -264,13 +261,62 @@ public sealed class MainForm : Form
 
     private async Task<bool> IsCodexDesktopReadyAsync()
     {
-        _codexStatus.Text = "正在检测 Codex Desktop。";
-        var installed = await Task.Run(CodexInstaller.IsCodexInstalled);
+        _codexStatus.Text = "正在检测 Codex 桌面版。";
+        var installed = await CodexInstaller.IsCodexInstalledAsync();
         if (!IsDisposed)
         {
-            _codexStatus.Text = installed ? "已检测到 Codex Desktop。" : "未检测到 Codex Desktop。";
+            _codexStatus.Text = installed ? "已检测到 Codex 桌面版。" : "未检测到 Codex 桌面版。";
         }
 
+        return installed;
+    }
+
+    private async Task<bool> PromptInstallCodexDesktopAsync()
+    {
+        var choice = AppDialog.Confirm(
+            this,
+            "未检测到 Codex 桌面版",
+            "启动代理前需要安装 Codex 桌面版。是否现在一键安装？",
+            "一键安装");
+        if (choice != DialogResult.Yes)
+        {
+            _codexStatus.Text = "未检测到 Codex 桌面版。";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(_settings.ClientToken))
+        {
+            AppDialog.ShowWarning(this, "缺少 Token", "请先在设置中填写客户端 Token。");
+            ShowSettingsDialog();
+            return false;
+        }
+
+        using var progressDialog = new ProgressDialog("安装 Codex 桌面版", "正在准备安装。");
+        var progress = new Progress<CodexInstallProgress>(progressDialog.UpdateProgress);
+        progressDialog.Show(this);
+        CodexInstallResult result;
+        try
+        {
+            result = await CodexInstaller.InstallCodexDesktopAsync(_settings, progress);
+        }
+        finally
+        {
+            progressDialog.Close();
+        }
+
+        var installed = await CodexInstaller.IsCodexInstalledAsync();
+        if (!IsDisposed)
+        {
+            _codexStatus.Text = installed ? "已检测到 Codex 桌面版。" : "未检测到 Codex 桌面版。";
+        }
+
+        if (!result.Success)
+        {
+            AppDialog.ShowWarning(this, "安装失败", BuildInstallMessage(result));
+            return false;
+        }
+
+        AppDialog.ShowInfo(this, "安装完成", "Codex 桌面版已安装完成，可以继续启动代理。");
         return installed;
     }
 
@@ -291,18 +337,28 @@ public sealed class MainForm : Form
                 return false;
             }
 
-            var choice = MessageBox.Show(
+            var choice = AppDialog.Confirm(
+                this,
+                "发现新版本",
                 $"发现新版本 {update.RemoteVersion}，当前版本 {update.CurrentVersion}。\n是否立即更新？",
-                "客户端更新",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Information);
+                "立即更新");
             if (choice != DialogResult.Yes)
             {
                 return false;
             }
 
             _codexStatus.Text = "正在下载客户端更新。";
-            await ClientUpdater.DownloadAndApplyAsync(_settings);
+            using var progressDialog = new ProgressDialog("正在更新工具", "正在准备下载更新。");
+            var progress = new Progress<CodexInstallProgress>(progressDialog.UpdateProgress);
+            progressDialog.Show(this);
+            try
+            {
+                await ClientUpdater.DownloadAndApplyAsync(_settings, progress);
+            }
+            finally
+            {
+                progressDialog.Close();
+            }
             StopGatewayAndRestoreConfig();
             _allowExit = true;
             Application.Exit();
@@ -352,7 +408,7 @@ public sealed class MainForm : Form
         bool installed;
         try
         {
-            installed = await Task.Run(CodexInstaller.IsCodexInstalled);
+            installed = await CodexInstaller.IsCodexInstalledAsync();
         }
         catch
         {
@@ -361,8 +417,24 @@ public sealed class MainForm : Form
 
         if (!IsDisposed)
         {
-            _codexStatus.Text = installed ? "已检测到 Codex Desktop。" : "未检测到 Codex Desktop。";
+            _codexStatus.Text = installed ? "已检测到 Codex 桌面版。" : "未检测到 Codex 桌面版。";
         }
+    }
+
+    private static string BuildInstallMessage(CodexInstallResult result)
+    {
+        if (string.IsNullOrWhiteSpace(result.Output))
+        {
+            return result.Message;
+        }
+
+        var output = result.Output.Trim();
+        if (output.Length > 800)
+        {
+            output = output[^800..];
+        }
+
+        return result.Message + "\n\n安装日志：\n" + output;
     }
 
     private void OnMainFormClosing(object? sender, FormClosingEventArgs e)

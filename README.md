@@ -1,26 +1,48 @@
 # Codex Login Tools
 
-一个给非程序员朋友使用 Codex 的本地转发网关、远程管理端和 Windows 桌面小工具。
+给朋友使用 Codex 的一套本地代理和远程管理工具。服务端统一管理上游模型、客户端令牌、Codex 桌面版安装包和 Windows 客户端更新包；Windows 客户端在本机启动代理并写入 Codex 配置。
 
 ## 组件
 
 - `apps/admin`：远程 Web 管理端，默认监听 `0.0.0.0:18080`
-- `apps/gateway`：本地透明转发网关，默认监听 `127.0.0.1:17861`
-- `apps/desktop`：Electron 桌面小工具，用于开启/停止本地网关、写入 Codex 配置、检查更新
+- `apps/gateway`：Node.js 本地透明转发网关，默认监听 `127.0.0.1:17861`
+- `apps/windows-client`：当前主用 Windows 桌面客户端，WinForms 单文件 exe
+- `apps/desktop`：早期 Electron 桌面端，当前不作为主要发布入口
 - `packages/shared`：远程配置 schema、provider/route 选择逻辑
+
+## 当前 Windows 客户端
+
+当前版本：`0.1.12`
+
+打包产物：
+
+```text
+apps/windows-client/release-0.1.12-fixed/CodexProxy.exe
+```
+
+主要能力：
+
+- 保存客户端 Token
+- 检测本机是否已安装 Codex 桌面版
+- 未检测到 Codex 桌面版时，提示是否一键安装
+- 从管理端下载并安装 Codex 桌面版安装包
+- 启动本机代理并写入 `~/.codex/config.toml`
+- 检查 Windows 客户端更新
+- 下载客户端更新时显示进度条
+- 令牌被禁用、安装失败、更新失败等提示使用中文界面
 
 ## 数据流
 
 ```text
-Codex CLI / Codex Desktop
+Codex CLI / Codex 桌面版
   -> http://127.0.0.1:17861/v1/responses
-  -> local gateway
-  -> remote admin config
+  -> Windows 客户端内置网关或本地 Node.js 网关
+  -> 远程管理端配置
   -> Responses-compatible upstream provider
-  -> response body streamed back to Codex
+  -> 响应体流式返回给 Codex
 ```
 
-网关会改写请求侧的 `Authorization` 和 `model`，响应体按流返回给 Codex。
+网关会改写请求侧的 `Authorization` 和 `model`。用户本地可以固定使用 `codex-best`，实际上游模型由远程管理端的路由配置决定。
 
 ## 部署远程管理端
 
@@ -34,13 +56,25 @@ export CLIENT_TOKEN="friend-client-token"
 docker compose up -d --build admin
 ```
 
-打开：
+打开管理端：
 
 ```text
 http://你的服务器IP:18080
 ```
 
-生产环境建议用 Nginx/Caddy 反代到 HTTPS。
+生产环境建议用 Nginx 或 Caddy 反代到 HTTPS。
+
+## 管理端功能
+
+管理端用于集中维护：
+
+- 服务商配置：`baseUrl`、`apiKey`、启用状态
+- 模型映射：本地模型名到上游模型名的路由
+- 故障切换：同一个 `matchModel` 可配置多条 route
+- 客户端令牌：创建、复制、启用、停用、删除
+- 用量统计：按令牌统计请求数和 token 用量
+- Codex 桌面版安装包：上传文件或配置下载地址
+- Windows 客户端更新包：上传 exe 或配置下载地址和版本号
 
 ## 远程配置格式
 
@@ -71,8 +105,6 @@ http://你的服务器IP:18080
 }
 ```
 
-Codex 本地可以使用 `model = "codex-best"`，实际请求模型由远程配置里的 `upstreamModel` 决定。
-
 ## 故障自动切换
 
 同一个 `matchModel` 可以配置多条 route。网关按 `priority` 从高到低尝试。
@@ -85,7 +117,67 @@ Codex 本地可以使用 `model = "codex-best"`，实际请求模型由远程配
 
 不会自动切换普通 `4xx`，例如 `400`、`401`、`403`、`404`。
 
+## Windows 客户端开发和打包
+
+构建：
+
+```powershell
+dotnet build apps\windows-client\CodexLoginTools.Win.csproj -c Release
+```
+
+发布单文件 exe：
+
+```powershell
+dotnet publish apps\windows-client\CodexLoginTools.Win.csproj `
+  -c Release `
+  -r win-x64 `
+  --self-contained true `
+  -p:PublishSingleFile=true `
+  -p:EnableCompressionInSingleFile=true `
+  -p:IncludeNativeLibrariesForSelfExtract=true `
+  -o apps\windows-client\release-0.1.12-fixed
+```
+
+版本号在这里维护：
+
+```xml
+<Version>0.1.12</Version>
+```
+
+文件位置：
+
+```text
+apps/windows-client/CodexLoginTools.Win.csproj
+```
+
+## 客户端更新流程
+
+1. 修改 `apps/windows-client/CodexLoginTools.Win.csproj` 的 `<Version>`
+2. 使用 `dotnet publish` 打包 `CodexProxy.exe`
+3. 在管理端上传客户端更新包，或填写 exe 下载地址
+4. 填写对应版本号，例如 `0.1.12`
+5. 客户端启动或点击启动代理时会检查更新
+6. 发现新版本后弹窗确认，下载时显示进度条
+7. 下载完成后由更新脚本替换当前 exe
+
+## Codex 桌面版安装包
+
+如果用户机器未安装 Codex 桌面版，Windows 客户端会在启动代理前提示：
+
+```text
+未检测到 Codex 桌面版，是否现在一键安装？
+```
+
+安装包来源由管理端配置：
+
+- 上传安装包文件
+- 或填写 Codex 桌面版安装包下载地址
+
+下载和安装过程会在客户端显示进度。
+
 ## 本地命令行网关
+
+仍可直接运行 Node.js 网关：
 
 ```powershell
 $env:CONFIG_URL="http://你的服务器IP:18080/api/gateway/config"
@@ -97,68 +189,9 @@ $env:CODEX_MODEL="codex-best"
 npm run start:gateway
 ```
 
-## 桌面小工具
-
-开发启动：
-
-```powershell
-npm install
-npm run dev:desktop
-```
-
-打包 Windows 安装包和 portable exe：
-
-```powershell
-npm run dist:desktop
-```
-
-打包输出目录：
-
-```text
-apps/desktop/release
-```
-
-桌面端能力：
-
-- 开启/停止本地网关
-- 保存远程管理端配置地址和 `CLIENT_TOKEN`
-- 写入 `~/.codex/config.toml`
-- 查看网关运行状态
-- 检查 GitHub Releases 更新
-- 打包后支持 `electron-updater` 自动更新框架
-
-当前 `apps/desktop/package.json` 中 GitHub Releases 配置为占位：
-
-```json
-{
-  "provider": "github",
-  "owner": "CHANGE_ME",
-  "repo": "codex-login-tools"
-}
-```
-
-正式发布前需要把 `owner` 改成你的 GitHub 用户或组织名，并把 `repo` 改成实际仓库名。
-
-## 桌面端发版流程
-
-1. 修改 `apps/desktop/package.json` 的 GitHub `owner` / `repo`
-2. 设置 GitHub token：
-
-```powershell
-$env:GH_TOKEN="你的 GitHub token"
-```
-
-3. 构建并发布：
-
-```powershell
-npm run dist:desktop -- --publish always
-```
-
-4. 朋友安装上一版后，后续可在桌面端点击“检查更新”获取新版本。
-
 ## Codex 配置写入块
 
-桌面端或网关会写入：
+Windows 客户端或 Node.js 网关会写入：
 
 ```toml
 # BEGIN CODEX LOGIN TOOLS GATEWAY
@@ -175,15 +208,23 @@ requires_openai_auth = true
 
 ## 验证
 
+常用验证命令：
+
 ```powershell
 npm test
 npm run build
-npm run dist:desktop
+dotnet build apps\windows-client\CodexLoginTools.Win.csproj -c Release
+```
+
+如果只修改 Windows 客户端，可优先运行：
+
+```powershell
+dotnet build apps\windows-client\CodexLoginTools.Win.csproj -c Release
 ```
 
 ## 当前限制
 
 - 上游必须兼容 `/v1/responses`
-- 远程 admin 会把上游 API key 下发给本地网关，适合可信朋友小范围使用
+- 远程管理端会保存上游 API key，适合可信朋友小范围使用
 - 更高安全级别建议改成云端转发或短期凭证
-- 自动更新框架已接入，但真正可更新需要先发布 GitHub Release
+- `apps/desktop` 是早期 Electron 实现，当前发布请优先使用 `apps/windows-client`

@@ -212,7 +212,7 @@ describe("admin api", () => {
     expect(dashboard.json().tokens[0].requestCount).toBe(3);
   });
 
-  it("lets an admin upload a Codex Desktop installer and a gateway download it", async () => {
+  it("lets an admin upload a Codex 桌面版 installer and a gateway download it", async () => {
     const dir = await mkdtemp(join(tmpdir(), "codex-admin-"));
     dirs.push(dir);
     const server = buildAdminServer({
@@ -262,7 +262,7 @@ describe("admin api", () => {
     expect(download.body).toBe("fake-installer");
   });
 
-  it("lets an admin delete a legacy Codex Desktop installer GitHub URL", async () => {
+  it("lets an admin delete a legacy Codex 桌面版 installer GitHub URL", async () => {
     const dir = await mkdtemp(join(tmpdir(), "codex-admin-"));
     dirs.push(dir);
     const installerDir = join(dir, "installers");

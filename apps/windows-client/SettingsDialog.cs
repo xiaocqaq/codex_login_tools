@@ -30,7 +30,7 @@ public sealed class SettingsDialog : Form
         };
 
         AutoScaleMode = AutoScaleMode.None;
-        ClientSize = new Size(480, 360);
+        ClientSize = new Size(480, 300);
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
@@ -50,7 +50,7 @@ public sealed class SettingsDialog : Form
         e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
         using var cardBrush = new SolidBrush(Card);
         using var linePen = new Pen(Line);
-        using var card = RoundedRect(new Rectangle(24, 70, 432, 206), 14);
+        using var card = RoundedRect(new Rectangle(24, 24, 432, 206), 14);
         e.Graphics.FillPath(cardBrush, card);
         e.Graphics.DrawPath(linePen, card);
     }
@@ -60,18 +60,7 @@ public sealed class SettingsDialog : Form
         Controls.Add(new Label
         {
             AutoSize = false,
-            Location = new Point(28, 22),
-            Size = new Size(240, 36),
-            Text = "设置",
-            Font = new Font(Font.FontFamily, 18F, FontStyle.Bold),
-            ForeColor = TextColor,
-            BackColor = Background
-        });
-
-        Controls.Add(new Label
-        {
-            AutoSize = false,
-            Location = new Point(48, 96),
+            Location = new Point(48, 50),
             Size = new Size(160, 24),
             Text = "客户端 Token",
             Font = new Font(Font.FontFamily, 10F, FontStyle.Bold),
@@ -79,7 +68,7 @@ public sealed class SettingsDialog : Form
             BackColor = Card
         });
 
-        _token.Location = new Point(48, 128);
+        _token.Location = new Point(48, 82);
         _token.Size = new Size(384, 32);
         _token.Font = new Font(Font.FontFamily, 11F);
         _token.UseSystemPasswordChar = true;
@@ -87,14 +76,14 @@ public sealed class SettingsDialog : Form
         _token.Text = _settings.ClientToken;
         Controls.Add(_token);
 
-        _installStatus.Location = new Point(48, 190);
+        _installStatus.Location = new Point(48, 144);
         _installStatus.Size = new Size(250, 28);
         _installStatus.ForeColor = Muted;
         _installStatus.BackColor = Card;
-        _installStatus.Text = "Codex Desktop 安装状态";
+        _installStatus.Text = "Codex 桌面版安装状态";
         Controls.Add(_installStatus);
 
-        _installButton.Location = new Point(312, 184);
+        _installButton.Location = new Point(312, 138);
         _installButton.Size = new Size(120, 34);
         _installButton.Text = "安装桌面版";
         _installButton.FlatStyle = FlatStyle.Flat;
@@ -105,16 +94,16 @@ public sealed class SettingsDialog : Form
         _installButton.Click += async (_, _) => await InstallCodexAsync();
         Controls.Add(_installButton);
 
-        _installProgress.Location = new Point(48, 238);
+        _installProgress.Location = new Point(48, 192);
         _installProgress.Size = new Size(384, 12);
         _installProgress.Visible = false;
         Controls.Add(_installProgress);
 
-        var cancel = BuildFooterButton("取消", new Point(224, 302), Color.White, Primary, Line);
+        var cancel = BuildFooterButton("取消", new Point(224, 244), Color.White, Primary, Line);
         cancel.DialogResult = DialogResult.Cancel;
         Controls.Add(cancel);
 
-        var save = BuildFooterButton("保存", new Point(344, 302), Primary, Color.White, Primary);
+        var save = BuildFooterButton("保存", new Point(344, 244), Primary, Color.White, Primary);
         save.Click += (_, _) =>
         {
             DialogResult = DialogResult.OK;
@@ -130,7 +119,7 @@ public sealed class SettingsDialog : Form
     {
         try
         {
-            if (_codexInstalled || await Task.Run(CodexInstaller.IsCodexInstalled))
+            if (_codexInstalled || await CodexInstaller.IsCodexInstalledAsync())
             {
                 ApplyInstallState(installed: true);
                 return;
@@ -139,7 +128,7 @@ public sealed class SettingsDialog : Form
             _settings.ClientToken = ClientToken;
             if (string.IsNullOrWhiteSpace(_settings.ClientToken))
             {
-                MessageBox.Show(this, "请先填写客户端 Token。", "缺少 Token", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                AppDialog.ShowWarning(this, "缺少 Token", "请先填写客户端 Token。");
                 return;
             }
 
@@ -153,18 +142,20 @@ public sealed class SettingsDialog : Form
 
             var progress = new Progress<CodexInstallProgress>(UpdateInstallProgress);
             var result = await CodexInstaller.InstallCodexDesktopAsync(_settings, progress);
-            ApplyInstallState(await Task.Run(CodexInstaller.IsCodexInstalled));
-            MessageBox.Show(
-                this,
-                BuildInstallMessage(result),
-                result.Success ? "安装完成" : "安装失败",
-                MessageBoxButtons.OK,
-                result.Success ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
+            ApplyInstallState(await CodexInstaller.IsCodexInstalledAsync());
+            if (result.Success)
+            {
+                AppDialog.ShowInfo(this, "安装完成", BuildInstallMessage(result));
+            }
+            else
+            {
+                AppDialog.ShowWarning(this, "安装失败", BuildInstallMessage(result));
+            }
         }
         catch (Exception error)
         {
             _installStatus.Text = "安装失败，按钮已恢复。";
-            MessageBox.Show(this, error.Message, "安装失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            AppDialog.ShowError(this, "安装失败", error.Message);
         }
         finally
         {
@@ -178,17 +169,17 @@ public sealed class SettingsDialog : Form
 
     private async Task RefreshInstallStateAsync()
     {
-        _installStatus.Text = "\u6b63\u5728\u68c0\u6d4b Codex Desktop\u3002";
-        ApplyInstallState(await Task.Run(CodexInstaller.IsCodexInstalled));
+        _installStatus.Text = "正在检测 Codex 桌面版。";
+        ApplyInstallState(await CodexInstaller.IsCodexInstalledAsync());
     }
 
     private void ApplyInstallState(bool installed)
     {
         _codexInstalled = installed;
         _installStatus.Text = installed
-            ? "\u5df2\u68c0\u6d4b\u5230 Codex Desktop\u3002"
-            : "\u672a\u68c0\u6d4b\u5230 Codex Desktop\u3002";
-        _installButton.Text = installed ? "\u5df2\u5b89\u88c5" : "\u5b89\u88c5\u684c\u9762\u7248";
+            ? "已检测到 Codex 桌面版。"
+            : "未检测到 Codex 桌面版。";
+        _installButton.Text = installed ? "已安装" : "安装桌面版";
         _installButton.Enabled = !installed && !_installing;
         _installButton.Cursor = _installButton.Enabled ? Cursors.Hand : Cursors.Default;
     }

@@ -36,33 +36,105 @@ public sealed class InstallerDownloadStatus
 
 public static class CodexInstaller
 {
+    private static readonly SemaphoreSlim DetectionLock = new(1, 1);
+    private static readonly TimeSpan DetectionTimeout = TimeSpan.FromSeconds(12);
+    private static readonly TimeSpan InstalledCacheDuration = TimeSpan.FromSeconds(30);
     private static readonly HttpClient Client = new()
     {
         Timeout = TimeSpan.FromMinutes(10)
     };
 
+    private static bool _lastDetectionInstalled;
+    private static DateTimeOffset _lastInstalledDetectionAt;
+
     public static bool IsCodexInstalled()
     {
         try
         {
+            return IsCodexInstalledAsync().GetAwaiter().GetResult();
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public static async Task<bool> IsCodexInstalledAsync(CancellationToken cancellationToken = default)
+    {
+        if (HasFreshInstalledCache())
+        {
+            return true;
+        }
+
+        await DetectionLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (HasFreshInstalledCache())
+            {
+                return true;
+            }
+
+            var installed = await DetectCodexPackageAsync(cancellationToken).ConfigureAwait(false);
+            if (installed)
+            {
+                _lastDetectionInstalled = true;
+                _lastInstalledDetectionAt = DateTimeOffset.Now;
+            }
+            else
+            {
+                _lastDetectionInstalled = false;
+            }
+
+            return installed;
+        }
+        finally
+        {
+            DetectionLock.Release();
+        }
+    }
+
+    private static bool HasFreshInstalledCache() =>
+        _lastDetectionInstalled &&
+        DateTimeOffset.Now - _lastInstalledDetectionAt < InstalledCacheDuration;
+
+    private static async Task<bool> DetectCodexPackageAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var watch = Stopwatch.StartNew();
             using var process = StartPowerShell(
-                "if (Get-AppxPackage -Name OpenAI.Codex) { exit 0 } else { exit 1 }",
-                redirectOutput: false);
+                "if (Get-AppxPackage -Name OpenAI.Codex -ErrorAction SilentlyContinue) { [Console]::Out.Write('installed'); exit 0 } else { exit 1 }",
+                redirectOutput: true);
             if (process is null)
             {
                 return false;
             }
 
-            if (!process.WaitForExit(3000))
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(DetectionTimeout);
+            try
+            {
+                await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
                 process.Kill(entireProcessTree: true);
+                ClientLog.Write($"Codex 桌面版检测超时：{DetectionTimeout.TotalSeconds:0}s");
                 return false;
             }
 
-            return process.ExitCode == 0;
+            watch.Stop();
+            var output = await process.StandardOutput.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
+            var error = await process.StandardError.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
+            var installed = process.ExitCode == 0 && output.Contains("installed", StringComparison.OrdinalIgnoreCase);
+            ClientLog.Write(
+                $"Codex 桌面版检测 exit={process.ExitCode} installed={installed} elapsedMs={watch.ElapsedMilliseconds}" +
+                (string.IsNullOrWhiteSpace(error) ? "" : $" error={error.Trim()}"));
+            return installed;
         }
-        catch
+        catch (Exception error)
         {
+            ClientLog.Write("Codex 桌面版检测失败：" + error.Message);
             return false;
         }
     }
@@ -81,7 +153,7 @@ public static class CodexInstaller
 
             progress?.Report(new CodexInstallProgress
             {
-                Message = "下载完成，正在安装 Codex Desktop。",
+                Message = "下载完成，正在安装 Codex 桌面版。",
                 Percent = 100
             });
             return await RunInstallerAsync(download.Output).ConfigureAwait(false);
@@ -108,7 +180,7 @@ public static class CodexInstaller
         var status = await GetInstallerStatusAsync(settings).ConfigureAwait(false);
         if (!status.Uploaded)
         {
-            return new CodexInstallResult { Success = false, Message = "服务端还没有配置 Codex Desktop 安装包。" };
+            return new CodexInstallResult { Success = false, Message = "服务端还没有配置 Codex 桌面版安装包。" };
         }
 
         return !string.IsNullOrWhiteSpace(status.DownloadUrl)
@@ -194,7 +266,7 @@ public static class CodexInstaller
             {
                 Success = false,
                 Message = response.StatusCode == System.Net.HttpStatusCode.NotFound
-                    ? "服务端还没有上传 Codex Desktop 安装包。"
+                    ? "服务端还没有上传 Codex 桌面版安装包。"
                     : $"下载安装包失败：{(int)response.StatusCode} {body}"
             };
         }
@@ -247,7 +319,7 @@ public static class CodexInstaller
                     lastPercent = percent;
                     progress?.Report(new CodexInstallProgress
                     {
-                        Message = $"正在下载 Codex Desktop：{FormatBytes(received)} / {FormatBytes(totalBytes.Value)}",
+                        Message = $"正在下载 Codex 桌面版：{FormatBytes(received)} / {FormatBytes(totalBytes.Value)}",
                         Percent = percent
                     });
                 }
@@ -257,7 +329,7 @@ public static class CodexInstaller
                 lastUnknownReport = received;
                 progress?.Report(new CodexInstallProgress
                 {
-                    Message = $"正在下载 Codex Desktop：已下载 {FormatBytes(received)}",
+                    Message = $"正在下载 Codex 桌面版：已下载 {FormatBytes(received)}",
                     Percent = null
                 });
             }
@@ -357,7 +429,7 @@ public static class CodexInstaller
             return new CodexInstallResult
             {
                 Success = false,
-                Message = "Codex Desktop 安装超时，已停止安装进程。",
+                Message = "Codex 桌面版安装超时，已停止安装进程。",
                 Output = output.ToString()
             };
         }
@@ -367,18 +439,18 @@ public static class CodexInstaller
             return new CodexInstallResult
             {
                 Success = false,
-                Message = $"Codex Desktop 安装失败，退出码：{process.ExitCode}。",
+                Message = $"Codex 桌面版安装失败，退出码：{process.ExitCode}。",
                 Output = output.ToString()
             };
         }
 
-        var installed = IsCodexInstalled();
+        var installed = await IsCodexInstalledAsync().ConfigureAwait(false);
         return new CodexInstallResult
         {
             Success = installed,
             Message = installed
-                ? "Codex Desktop 已安装完成。"
-                : $"安装进程已结束，但还没有检测到 Codex Desktop。安装包位置：{installerPath}",
+                ? "Codex 桌面版已安装完成。"
+                : $"安装进程已结束，但还没有检测到 Codex 桌面版。安装包位置：{installerPath}",
             Output = output.ToString()
         };
     }
