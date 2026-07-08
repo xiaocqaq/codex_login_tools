@@ -383,6 +383,10 @@ const App = {
       return (store.config?.routes ?? []).filter((route) => route.providerId === providerId);
     }
 
+    function formatWan(value: number) {
+      return `${(value / 10000).toFixed(2)} 万`;
+    }
+
     function toggleProvider(providerId: string) {
       expandedProviderIds.value = toggleId(expandedProviderIds.value, providerId);
     }
@@ -613,7 +617,7 @@ const App = {
         key: "enabled",
         render: (row) => h(NTag, { type: row.enabled ? "success" : "error" }, () => row.enabled ? "启用" : "停用"),
       },
-      { title: "Total", key: "totalTokens", sorter: "default" },
+      { title: "Total（万）", key: "totalTokens", sorter: "default", render: (row) => formatWan(row.totalTokens) },
       { title: "请求", key: "requestCount", sorter: "default" },
       { title: "最后使用", key: "lastUsedAt", render: (row) => formatDate(row.lastUsedAt) },
     ];
@@ -656,10 +660,10 @@ const App = {
 
     const usageColumns: DataTableColumns<TokenRow> = [
       { title: "名称", key: "name" },
-      { title: "Total", key: "totalTokens", sorter: "default" },
-      { title: "输入", key: "inputTokens", sorter: "default" },
-      { title: "输出", key: "outputTokens", sorter: "default" },
-      { title: "缓存读", key: "cachedInputTokens", sorter: "default" },
+      { title: "Total（万）", key: "totalTokens", sorter: "default", render: (row) => formatWan(row.totalTokens) },
+      { title: "输入（万）", key: "inputTokens", sorter: "default", render: (row) => formatWan(row.inputTokens) },
+      { title: "输出（万）", key: "outputTokens", sorter: "default", render: (row) => formatWan(row.outputTokens) },
+      { title: "缓存读（万）", key: "cachedInputTokens", sorter: "default", render: (row) => formatWan(row.cachedInputTokens) },
       { title: "请求", key: "requestCount", sorter: "default" },
       { title: "成功", key: "successCount", sorter: "default" },
       { title: "失败", key: "failureCount", sorter: "default" },
@@ -720,6 +724,7 @@ const App = {
       deleteInstaller,
       formatBytes,
       formatDate,
+      formatWan,
       usageColumns,
     };
   },
@@ -728,12 +733,8 @@ const App = {
       <n-message-provider>
         <n-layout class="app-shell">
           <n-layout-header class="header">
+            <div class="brand-title">管理端</div>
             <n-space align="center" class="header-actions">
-              <div v-if="store.authed && store.config" class="top-setting">
-                <span>刷新间隔</span>
-                <n-input-number v-model:value="store.config.pollIntervalSeconds" :min="5" :max="3600" size="small" />
-                <span>秒</span>
-              </div>
               <n-button secondary @click="toggleTheme">{{ themeMode === 'dark' ? '亮色' : '暗色' }}</n-button>
               <span class="status">{{ store.authed ? '已登录' : '未登录' }}</span>
               <n-button v-if="store.authed" secondary @click="refresh">刷新数据</n-button>
@@ -760,10 +761,10 @@ const App = {
               <n-tabs v-model:value="activeTab" type="segment" animated>
                 <n-tab-pane name="overview" tab="总览">
                   <n-grid cols="1 s:2 m:4" :x-gap="12" :y-gap="12" responsive="screen">
-                    <n-grid-item><n-card><n-statistic label="总 Token" :value="store.dashboard.totals.totalTokens" /></n-card></n-grid-item>
+                    <n-grid-item><n-card><n-statistic label="总 Token（万）" :value="formatWan(store.dashboard.totals.totalTokens)" /></n-card></n-grid-item>
                     <n-grid-item><n-card><n-statistic label="请求数" :value="store.dashboard.totals.requestCount" /></n-card></n-grid-item>
-                    <n-grid-item><n-card><n-statistic label="输入 Token" :value="store.dashboard.totals.inputTokens" /></n-card></n-grid-item>
-                    <n-grid-item><n-card><n-statistic label="输出 Token" :value="store.dashboard.totals.outputTokens" /></n-card></n-grid-item>
+                    <n-grid-item><n-card><n-statistic label="输入 Token（万）" :value="formatWan(store.dashboard.totals.inputTokens)" /></n-card></n-grid-item>
+                    <n-grid-item><n-card><n-statistic label="输出 Token（万）" :value="formatWan(store.dashboard.totals.outputTokens)" /></n-card></n-grid-item>
                   </n-grid>
                   <n-grid class="ops-grid" cols="1 m:3" :x-gap="12" :y-gap="12" responsive="screen">
                     <n-grid-item>
@@ -828,7 +829,12 @@ const App = {
                 <n-tab-pane name="providers" tab="服务商配置">
                   <n-card title="服务商">
                     <template #header-extra>
-                      <n-space>
+                      <n-space align="center" class="provider-toolbar">
+                        <div v-if="store.config" class="top-setting">
+                          <span>刷新间隔</span>
+                          <n-input-number v-model:value="store.config.pollIntervalSeconds" :min="5" :max="3600" size="small" />
+                          <span>秒</span>
+                        </div>
                         <n-button secondary @click="addProvider">新增服务商</n-button>
                         <n-button type="primary" @click="saveConfig">保存配置</n-button>
                       </n-space>
