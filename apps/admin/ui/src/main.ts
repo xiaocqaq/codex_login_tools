@@ -226,7 +226,6 @@ const App = {
             id: route.id,
             label: `${route.matchModel || "*"} -> ${route.upstreamModel || "未填写实际模型"}`,
             providerName: provider?.name || route.providerId,
-            priority: route.priority,
           };
         });
     });
@@ -399,6 +398,69 @@ const App = {
       return (store.config?.routes ?? []).filter((route) => route.providerId === providerId);
     }
 
+    function providerEnabledRouteCount(providerId: string) {
+      return routesForProvider(providerId).filter((route) => route.enabled).length;
+    }
+
+    function providerRouteSummary(providerId: string) {
+      const routes = routesForProvider(providerId);
+      if (!routes.length) return "暂无模型";
+      const enabledCount = routes.filter((route) => route.enabled).length;
+      return `${routes.length} 个模型，${enabledCount} 个启用`;
+    }
+
+    function normalizeProviderPriorities() {
+      if (!store.config) return [];
+      const providerRank = new Map(store.config.providers.map((provider, index) => [provider.id, index]));
+      store.config.routes = store.config.routes.map((route, index) => {
+        const rank = providerRank.get(route.providerId) ?? store.config!.providers.length;
+        return {
+          ...route,
+          priority: (store.config!.providers.length - rank) * 1000 - index,
+        };
+      });
+
+      return store.config.routes
+        .filter((route) => {
+          const provider = store.config?.providers.find((item) => item.id === route.providerId);
+          return route.enabled && provider?.enabled;
+        })
+        .sort((left, right) => right.priority - left.priority);
+    }
+
+    function moveProviderPriority(providerId: string, direction: -1 | 1) {
+      if (!store.config) return;
+      const currentIndex = store.config.providers.findIndex((provider) => provider.id === providerId);
+      const targetIndex = currentIndex + direction;
+      if (currentIndex < 0 || targetIndex < 0 || targetIndex >= store.config.providers.length) return;
+      const providers = [...store.config.providers];
+      const [provider] = providers.splice(currentIndex, 1);
+      providers.splice(targetIndex, 0, provider!);
+      store.config.providers = providers;
+      normalizeProviderPriorities();
+    }
+
+    function onProviderDragStart(event: DragEvent, providerId: string) {
+      event.dataTransfer?.setData("text/plain", providerId);
+      if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+    }
+
+    function onProviderDrop(event: DragEvent, targetProviderId: string) {
+      if (!store.config) return;
+      const sourceProviderId = event.dataTransfer?.getData("text/plain");
+      if (!sourceProviderId || sourceProviderId === targetProviderId) return;
+
+      const providers = [...store.config.providers];
+      const sourceIndex = providers.findIndex((provider) => provider.id === sourceProviderId);
+      const targetIndex = providers.findIndex((provider) => provider.id === targetProviderId);
+      if (sourceIndex < 0 || targetIndex < 0) return;
+
+      const [provider] = providers.splice(sourceIndex, 1);
+      providers.splice(targetIndex, 0, provider!);
+      store.config.providers = providers;
+      normalizeProviderPriorities();
+    }
+
     function formatWan(value: number) {
       return `${(value / 10000).toFixed(2)} 万`;
     }
@@ -424,16 +486,12 @@ const App = {
 
     async function saveConfig() {
       if (!store.config) return;
+      const enabledRoutes = normalizeProviderPriorities();
       const error = validateConfig(store.config);
       if (error) {
         message.error(error);
         return;
       }
-
-      const enabledRoutes = store.config.routes.filter((route) => {
-        const provider = store.config?.providers.find((item) => item.id === route.providerId);
-        return route.enabled && provider?.enabled;
-      });
 
       try {
         const result = await store.api<{ config: RemoteConfig }>("/api/admin/config", {
@@ -734,6 +792,11 @@ const App = {
       toggleTheme,
       isProviderExpanded,
       openProviderModels,
+      moveProviderPriority,
+      onProviderDragStart,
+      onProviderDrop,
+      providerEnabledRouteCount,
+      providerRouteSummary,
       uploadInstaller,
       saveInstallerUrl,
       uploadClientRelease,
@@ -834,7 +897,7 @@ const App = {
                     <div class="route-digest">
                       <div v-for="route in primaryRoutes" :key="route.id" class="route-digest__item">
                         <strong>{{ route.label }}</strong>
-                        <span>{{ route.providerName }}，优先级 {{ route.priority }}</span>
+                        <span>{{ route.providerName }}</span>
                       </div>
                     </div>
                   </n-card>
@@ -916,35 +979,41 @@ const App = {
                   </n-card>
                 </n-tab-pane>
 
-                <n-tab-pane name="models" tab="模型配置">
-                  <n-card title="模型映射">
+                <n-tab-pane name="models" tab="服务商优先级">
+                  <n-card title="服务商优先级">
                     <template #header-extra>
                       <n-space>
                         <n-button type="primary" @click="saveConfig">保存配置</n-button>
                       </n-space>
                     </template>
-                    <n-alert type="info" title="映射规则" class="compact-alert">
-                      模型详情现在在服务商配置里维护；这里只控制模型是否启用和当前优先级顺序。
+                    <n-alert type="info" title="排序规则" class="compact-alert">
+                      拖拽服务商调整优先级，排名越靠前越优先使用；模型详情仍在服务商配置里维护。
                     </n-alert>
-                    <n-space v-if="store.config.providers.length" vertical size="large">
-                      <n-card v-for="provider in store.config.providers" :key="provider.id" embedded class="provider-model-card">
-                        <n-space justify="space-between" align="center" class="card-title-row provider-model-top">
-                          <div class="provider-summary provider-summary--compact">
-                            <h3>{{ provider.name || '未命名服务商' }}</h3>
-                          </div>
-                          <div v-if="routesForProvider(provider.id).length" class="provider-route-strip">
-                            <div v-for="route in routesForProvider(provider.id)" :key="route.id" class="provider-route-inline">
-                              <span class="inline-priority-label">优先级</span>
-                              <n-input-number v-model:value="route.priority" size="small" style="width: 88px" />
-                              <n-switch v-model:value="route.enabled"><template #checked>启用</template><template #unchecked>停用</template></n-switch>
-                            </div>
-                          </div>
-                          <n-space align="center">
-                            <n-button secondary @click="openProviderModels(provider.id)">编辑模型详情</n-button>
-                          </n-space>
+                    <div v-if="store.config.providers.length" class="provider-priority-list">
+                      <div
+                        v-for="(provider, index) in store.config.providers"
+                        :key="provider.id"
+                        class="provider-priority-row"
+                        draggable="true"
+                        @dragstart="onProviderDragStart($event, provider.id)"
+                        @dragover.prevent
+                        @drop.prevent="onProviderDrop($event, provider.id)"
+                      >
+                        <div class="drag-handle">☰</div>
+                        <div class="provider-priority-main">
+                          <strong>{{ provider.name || '未命名服务商' }}</strong>
+                          <span>{{ providerRouteSummary(provider.id) }}</span>
+                        </div>
+                        <n-tag :type="provider.enabled && providerEnabledRouteCount(provider.id) ? 'success' : 'warning'">
+                          {{ provider.enabled ? '服务商启用' : '服务商停用' }}
+                        </n-tag>
+                        <n-space align="center" class="priority-actions">
+                          <n-button size="small" secondary :disabled="index === 0" @click="moveProviderPriority(provider.id, -1)">上移</n-button>
+                          <n-button size="small" secondary :disabled="index === store.config.providers.length - 1" @click="moveProviderPriority(provider.id, 1)">下移</n-button>
+                          <n-button secondary @click="openProviderModels(provider.id)">编辑模型详情</n-button>
                         </n-space>
-                      </n-card>
-                    </n-space>
+                      </div>
+                    </div>
                     <n-empty v-else description="暂无服务商，请先新增服务商" />
                   </n-card>
                 </n-tab-pane>

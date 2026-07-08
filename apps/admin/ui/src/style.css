@@ -285,6 +285,64 @@ body {
   padding-bottom: 16px;
 }
 
+.provider-priority-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.provider-priority-row {
+  display: grid;
+  grid-template-columns: 36px minmax(180px, 1fr) auto auto;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  cursor: grab;
+}
+
+.provider-priority-row:active {
+  cursor: grabbing;
+}
+
+.drag-handle {
+  color: var(--text-muted);
+  font-size: 18px;
+  line-height: 1;
+  text-align: center;
+  user-select: none;
+}
+
+.provider-priority-main {
+  min-width: 0;
+}
+
+.provider-priority-main strong,
+.provider-priority-main span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.provider-priority-main strong {
+  color: var(--text-strong);
+  font-size: 16px;
+}
+
+.provider-priority-main span {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.priority-actions {
+  justify-content: flex-end;
+  white-space: nowrap;
+}
+
 .route-summary {
   min-width: 0;
 }
@@ -504,6 +562,20 @@ body {
   .provider-route-inline {
     flex-wrap: wrap;
     justify-content: flex-start;
+  }
+
+  .provider-priority-row {
+    grid-template-columns: 32px minmax(0, 1fr);
+  }
+
+  .provider-priority-row > .n-tag,
+  .priority-actions {
+    grid-column: 1 / -1;
+  }
+
+  .priority-actions {
+    justify-content: flex-start;
+    white-space: normal;
   }
 
   .route-detail-body--compact {
