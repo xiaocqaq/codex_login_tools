@@ -327,23 +327,20 @@ public sealed class MainForm : Form
             return false;
         }
 
+        ClientUpdateCheck? update = null;
         try
         {
             _checkingClientUpdate = true;
             ReadSettings();
-            var update = await ClientUpdater.CheckAsync(_settings);
+            update = await ClientUpdater.CheckAsync(_settings);
             if (!update.Available || IsDisposed)
             {
                 return false;
             }
 
-            var choice = AppDialog.Confirm(
-                this,
-                "发现新版本",
-                $"发现新版本 {update.RemoteVersion}，当前版本 {update.CurrentVersion}。\n是否立即更新？",
-                "立即更新");
-            if (choice != DialogResult.Yes)
+            if (ClientUpdateFailureStore.ShouldSkip(update.RemoteVersion))
             {
+                ClientLog.Write($"client update skipped after previous failure: {update.RemoteVersion}");
                 return false;
             }
 
@@ -353,12 +350,13 @@ public sealed class MainForm : Form
             progressDialog.Show(this);
             try
             {
-                await ClientUpdater.DownloadAndApplyAsync(_settings, progress);
+                await ClientUpdater.DownloadAndApplyAsync(_settings, update, progress);
             }
             finally
             {
                 progressDialog.Close();
             }
+            ClientUpdateFailureStore.Clear(update.RemoteVersion);
             StopGatewayAndRestoreConfig();
             _allowExit = true;
             Application.Exit();
@@ -367,6 +365,11 @@ public sealed class MainForm : Form
         catch (Exception error)
         {
             ClientLog.Write("client update failed: " + error);
+            if (update?.Available == true)
+            {
+                ClientUpdateFailureStore.Record(update.RemoteVersion, error);
+            }
+
             return false;
         }
         finally

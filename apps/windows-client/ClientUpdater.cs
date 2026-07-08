@@ -79,7 +79,24 @@ public static class ClientUpdater
         IProgress<CodexInstallProgress>? progress = null)
     {
         var status = await CheckAsync(settings).ConfigureAwait(false);
+        await DownloadAndApplyAsync(settings, status, progress).ConfigureAwait(false);
+    }
+
+    public static async Task DownloadAndApplyAsync(
+        AppSettings settings,
+        ClientUpdateCheck status,
+        IProgress<CodexInstallProgress>? progress = null)
+    {
+        if (!status.Available)
+        {
+            throw new InvalidOperationException("当前没有可用客户端更新。");
+        }
+
         var candidates = BuildDownloadCandidates(status, settings);
+        if (candidates.Count == 0)
+        {
+            throw new InvalidOperationException("客户端更新包未配置下载源。");
+        }
 
         var dir = Path.Combine(Path.GetTempPath(), "CodexLoginTools", "Update");
         Directory.CreateDirectory(dir);
