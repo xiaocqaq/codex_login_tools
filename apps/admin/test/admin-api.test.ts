@@ -88,6 +88,98 @@ describe("admin api", () => {
     expect(gateway.json().providers[0].apiKey).toBe("sk-test");
   });
 
+  it("filters gateway config routes by client token model permissions", async () => {
+    const server = buildAdminServer({
+      adminUser: "admin",
+      adminPassword: "secret",
+      clientToken: "legacy-client-token",
+      initialConfig: {
+        version: 1,
+        pollIntervalSeconds: 60,
+        providers: [
+          {
+            id: "primary",
+            name: "Primary",
+            baseUrl: "https://primary.example.com/v1",
+            apiKey: "sk-primary",
+            enabled: true,
+          },
+          {
+            id: "backup",
+            name: "Backup",
+            baseUrl: "https://backup.example.com/v1",
+            apiKey: "sk-backup",
+            enabled: true,
+          },
+        ],
+        routes: [
+          {
+            id: "primary-route",
+            providerId: "primary",
+            matchModel: "codex-best",
+            upstreamModel: "primary-model",
+            enabled: true,
+            priority: 100,
+          },
+          {
+            id: "backup-route",
+            providerId: "backup",
+            matchModel: "codex-best",
+            upstreamModel: "backup-model",
+            enabled: true,
+            priority: 10,
+          },
+        ],
+        defaultRouteId: "backup-route",
+      },
+    });
+    servers.push(server);
+    const adminToken = await login(server);
+
+    const created = await server.inject({
+      method: "POST",
+      url: "/api/admin/tokens",
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { name: "Limited laptop" },
+    });
+    expect(created.statusCode).toBe(200);
+    const createdBody = created.json<{ token: { id: string }; tokenValue: string }>();
+
+    const defaultConfig = await server.inject({
+      method: "GET",
+      url: "/api/gateway/config",
+      headers: { authorization: `Bearer ${createdBody.tokenValue}` },
+    });
+    expect(defaultConfig.statusCode).toBe(200);
+    expect(defaultConfig.json().routes.map((route: { id: string }) => route.id)).toEqual([
+      "primary-route",
+      "backup-route",
+    ]);
+
+    const patched = await server.inject({
+      method: "PATCH",
+      url: `/api/admin/tokens/${createdBody.token.id}`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { allowedRouteIds: ["primary-route"] },
+    });
+    expect(patched.statusCode).toBe(200);
+
+    const limitedConfig = await server.inject({
+      method: "GET",
+      url: "/api/gateway/config",
+      headers: { authorization: `Bearer ${createdBody.tokenValue}` },
+    });
+
+    expect(limitedConfig.statusCode).toBe(200);
+    expect(limitedConfig.json().routes.map((route: { id: string }) => route.id)).toEqual([
+      "primary-route",
+    ]);
+    expect(limitedConfig.json().providers.map((provider: { id: string }) => provider.id)).toEqual([
+      "primary",
+    ]);
+    expect(limitedConfig.json().defaultRouteId).toBe("primary-route");
+  });
+
   it("lets an admin create, disable, enable, and delete client tokens", async () => {
     const server = buildAdminServer({
       adminUser: "admin",

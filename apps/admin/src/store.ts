@@ -11,6 +11,7 @@ export interface ClientTokenRecord {
   tokenHash: string;
   tokenPreview: string;
   enabled: boolean;
+  allowedRouteIds?: string[];
   createdAt: string;
   lastUsedAt?: string;
   deletedAt?: string;
@@ -54,9 +55,10 @@ export interface AdminStore {
     tokenValue: string;
   };
   listClientTokens: () => ClientTokenRecord[];
+  getConfigForToken: (token?: ClientTokenRecord) => RemoteConfig | undefined;
   updateClientToken: (
     id: string,
-    input: { enabled?: boolean; name?: string; note?: string },
+    input: { enabled?: boolean; name?: string; note?: string; allowedRouteIds?: unknown },
   ) => ClientTokenRecord | undefined;
   deleteClientToken: (id: string) => ClientTokenRecord | undefined;
   validateClientToken: (tokenValue: string, legacyToken: string) => TokenValidation;
@@ -102,6 +104,7 @@ export function createAdminStore(options: {
         tokenHash: hashToken(tokenValue),
         tokenPreview: previewToken(tokenValue),
         enabled: true,
+        allowedRouteIds: [],
         createdAt: new Date().toISOString(),
       };
       state = { ...state, clientTokens: [...state.clientTokens, token] };
@@ -109,6 +112,38 @@ export function createAdminStore(options: {
       return { token, tokenValue };
     },
     listClientTokens: () => state.clientTokens.filter((token) => !token.deletedAt),
+    getConfigForToken: (token) => {
+      const allowedRouteIds = normalizeAllowedRouteIds(token?.allowedRouteIds);
+      if (!allowedRouteIds.length) {
+        return state.config;
+      }
+
+      const allowed = new Set(allowedRouteIds);
+      const routes = state.config.routes.filter((route) => allowed.has(route.id));
+      const providerIds = new Set(routes.map((route) => route.providerId));
+      const providers = state.config.providers.filter((provider) => providerIds.has(provider.id));
+      const enabledProviderIds = new Set(
+        providers.filter((provider) => provider.enabled).map((provider) => provider.id),
+      );
+      const enabledRoutes = routes
+        .filter((route) => route.enabled && enabledProviderIds.has(route.providerId))
+        .sort((left, right) => right.priority - left.priority);
+
+      if (!enabledRoutes.length) {
+        return undefined;
+      }
+
+      const defaultRouteId = enabledRoutes.some((route) => route.id === state.config.defaultRouteId)
+        ? state.config.defaultRouteId
+        : enabledRoutes[0]!.id;
+
+      return {
+        ...state.config,
+        providers,
+        routes,
+        defaultRouteId,
+      };
+    },
     updateClientToken: (id, input) => {
       let updated: ClientTokenRecord | undefined;
       state = {
@@ -122,6 +157,10 @@ export function createAdminStore(options: {
             enabled: typeof input.enabled === "boolean" ? input.enabled : token.enabled,
             name: input.name?.trim() || token.name,
             note: typeof input.note === "string" ? input.note.trim() : token.note,
+            allowedRouteIds:
+              input.allowedRouteIds === undefined
+                ? token.allowedRouteIds
+                : normalizeAllowedRouteIds(input.allowedRouteIds),
           };
           return updated;
         }),
@@ -242,6 +281,7 @@ function normalizeToken(input: ClientTokenRecord): ClientTokenRecord {
   return {
     ...input,
     tokenValue: input.tokenValue ?? input.tokenPreview ?? "",
+    allowedRouteIds: normalizeAllowedRouteIds(input.allowedRouteIds),
   };
 }
 
@@ -269,6 +309,20 @@ function hashToken(token: string): string {
 
 function previewToken(token: string): string {
   return `${token.slice(0, 10)}...${token.slice(-6)}`;
+}
+
+function normalizeAllowedRouteIds(input: unknown): string[] {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+
+  return [
+    ...new Set(
+      input
+        .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+        .map((item) => item.trim()),
+    ),
+  ];
 }
 
 function sanitizeCounters(input: Partial<UsageCounters>): UsageCounters {

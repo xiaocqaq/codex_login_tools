@@ -35,6 +35,7 @@ interface TokenBody {
   name?: string;
   note?: string;
   enabled?: boolean;
+  allowedRouteIds?: string[];
 }
 
 interface InstallerMeta {
@@ -374,7 +375,12 @@ export function buildAdminServer(options: AdminServerOptions): FastifyInstance {
       return reply.status(validation.statusCode).send({ error: validation.error });
     }
 
-    return store.getConfig();
+    const config = store.getConfigForToken(validation.token);
+    if (!config) {
+      return reply.status(403).send({ error: "no model authorized" });
+    }
+
+    return config;
   });
 
   app.post<{ Body: Partial<UsageCounters> }>("/api/gateway/usage", async (request, reply) => {
