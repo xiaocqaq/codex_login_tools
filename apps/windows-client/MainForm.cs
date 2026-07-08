@@ -18,6 +18,7 @@ public sealed class MainForm : Form
     private readonly Label _statusTitle = new();
     private readonly Label _statusDetail = new();
     private readonly Label _codexStatus = new();
+    private readonly ProgressBar _updateProgress = new();
     private readonly ActionButton _toggle = new();
     private readonly ActionButton _settingsButton = new();
     private readonly NotifyIcon _trayIcon = new();
@@ -161,6 +162,14 @@ public sealed class MainForm : Form
         _codexStatus.ForeColor = Muted;
         _codexStatus.BackColor = Background;
         Controls.Add(_codexStatus);
+
+        _updateProgress.Location = new Point(38, 332);
+        _updateProgress.Size = new Size(490, 10);
+        _updateProgress.Minimum = 0;
+        _updateProgress.Maximum = 100;
+        _updateProgress.Style = ProgressBarStyle.Continuous;
+        _updateProgress.Visible = false;
+        Controls.Add(_updateProgress);
 
         ResumeLayout(false);
         ClientLog.Write("main form ui built");
@@ -346,16 +355,15 @@ public sealed class MainForm : Form
             }
 
             _codexStatus.Text = "正在下载客户端更新。";
-            using var progressDialog = new ProgressDialog("正在更新工具", "正在准备下载更新。");
-            var progress = new Progress<CodexInstallProgress>(progressDialog.UpdateProgress);
-            progressDialog.Show(this);
+            var progress = new Progress<CodexInstallProgress>(ReportUpdateProgress);
+            SetUpdateProgressVisible(true);
             try
             {
                 await ClientUpdater.DownloadAndApplyAsync(_settings, update, progress);
             }
             finally
             {
-                progressDialog.Close();
+                SetUpdateProgressVisible(false);
             }
             ClientUpdateFailureStore.Clear(update.RemoteVersion);
             StopGatewayAndRestoreConfig();
@@ -376,6 +384,59 @@ public sealed class MainForm : Form
         finally
         {
             _checkingClientUpdate = false;
+        }
+    }
+
+    private void SetUpdateProgressVisible(bool visible)
+    {
+        if (IsDisposed)
+        {
+            return;
+        }
+
+        if (visible)
+        {
+            _updateProgress.Style = ProgressBarStyle.Continuous;
+            _updateProgress.Value = 0;
+        }
+
+        _updateProgress.Visible = visible;
+    }
+
+    private void ReportUpdateProgress(CodexInstallProgress progress)
+    {
+        if (IsDisposed || !IsHandleCreated)
+        {
+            return;
+        }
+
+        if (InvokeRequired)
+        {
+            try
+            {
+                BeginInvoke(new Action(() => ReportUpdateProgress(progress)));
+            }
+            catch (InvalidOperationException)
+            {
+                // The form may be closing while a download progress event arrives.
+            }
+
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(progress.Message))
+        {
+            _codexStatus.Text = progress.Message;
+        }
+
+        if (progress.Percent.HasValue)
+        {
+            _updateProgress.Style = ProgressBarStyle.Continuous;
+            _updateProgress.Value = Math.Clamp(progress.Percent.Value, 0, 100);
+        }
+        else
+        {
+            _updateProgress.Style = ProgressBarStyle.Marquee;
         }
     }
 
