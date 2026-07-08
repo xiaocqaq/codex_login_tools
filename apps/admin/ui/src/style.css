@@ -568,7 +568,7 @@ body {
     grid-template-columns: 32px minmax(0, 1fr);
   }
 
-  .provider-priority-row > .n-tag,
+  .provider-priority-row > .n-switch,
   .priority-actions {
     grid-column: 1 / -1;
   }

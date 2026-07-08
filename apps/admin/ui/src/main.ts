@@ -398,10 +398,6 @@ const App = {
       return (store.config?.routes ?? []).filter((route) => route.providerId === providerId);
     }
 
-    function providerEnabledRouteCount(providerId: string) {
-      return routesForProvider(providerId).filter((route) => route.enabled).length;
-    }
-
     function providerRouteSummary(providerId: string) {
       const routes = routesForProvider(providerId);
       if (!routes.length) return "暂无模型";
@@ -795,7 +791,6 @@ const App = {
       moveProviderPriority,
       onProviderDragStart,
       onProviderDrop,
-      providerEnabledRouteCount,
       providerRouteSummary,
       uploadInstaller,
       saveInstallerUrl,
@@ -1004,9 +999,10 @@ const App = {
                           <strong>{{ provider.name || '未命名服务商' }}</strong>
                           <span>{{ providerRouteSummary(provider.id) }}</span>
                         </div>
-                        <n-tag :type="provider.enabled && providerEnabledRouteCount(provider.id) ? 'success' : 'warning'">
-                          {{ provider.enabled ? '服务商启用' : '服务商停用' }}
-                        </n-tag>
+                        <n-switch v-model:value="provider.enabled">
+                          <template #checked>启用</template>
+                          <template #unchecked>停用</template>
+                        </n-switch>
                         <n-space align="center" class="priority-actions">
                           <n-button size="small" secondary :disabled="index === 0" @click="moveProviderPriority(provider.id, -1)">上移</n-button>
                           <n-button size="small" secondary :disabled="index === store.config.providers.length - 1" @click="moveProviderPriority(provider.id, 1)">下移</n-button>
