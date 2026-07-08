@@ -12,12 +12,12 @@
 
 ## 当前 Windows 客户端
 
-当前版本：`0.1.12`
+当前版本：`0.2.0`
 
 打包产物：
 
 ```text
-apps/windows-client/release-0.1.12-fixed/CodexProxy.exe
+apps/windows-client/release-0.2.0/CodexProxy.exe
 ```
 
 主要能力：
@@ -143,13 +143,13 @@ dotnet publish apps\windows-client\CodexLoginTools.Win.csproj `
   -p:PublishSingleFile=true `
   -p:EnableCompressionInSingleFile=true `
   -p:IncludeNativeLibrariesForSelfExtract=true `
-  -o apps\windows-client\release-0.1.12-fixed
+  -o apps\windows-client\release-0.2.0
 ```
 
 版本号在这里维护：
 
 ```xml
-<Version>0.1.12</Version>
+<Version>0.2.0</Version>
 ```
 
 文件位置：
@@ -163,7 +163,7 @@ apps/windows-client/CodexLoginTools.Win.csproj
 1. 修改 `apps/windows-client/CodexLoginTools.Win.csproj` 的 `<Version>`
 2. 使用 `dotnet publish` 打包 `CodexProxy.exe`
 3. 在管理端上传客户端更新包，或填写 exe 下载地址
-4. 填写对应版本号，例如 `0.1.12`
+4. 填写对应版本号，例如 `0.2.0`
 5. 客户端启动或点击启动代理时会检查更新
 6. 发现新版本后弹窗确认，下载时显示进度条
 7. 下载完成后由更新脚本替换当前 exe
