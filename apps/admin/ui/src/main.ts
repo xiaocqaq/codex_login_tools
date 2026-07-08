@@ -25,6 +25,7 @@ import {
   NTabs,
   NTag,
   createDiscreteApi,
+  darkTheme,
 } from "naive-ui";
 import { createApp, computed, h, reactive, ref } from "vue";
 import type { DataTableColumns } from "naive-ui";
@@ -176,6 +177,10 @@ const App = {
   setup() {
     const store = useAdminStore();
     const activeTab = ref("overview");
+    const storedTheme = localStorage.getItem("adminTheme");
+    const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
+    const themeMode = ref<"light" | "dark">(storedTheme === "light" || storedTheme === "dark" ? storedTheme : prefersDark ? "dark" : "light");
+    const naiveTheme = computed(() => themeMode.value === "dark" ? darkTheme : null);
     const loginForm = reactive({ username: "admin", password: "" });
     const tokenForm = reactive({ name: "", note: "" });
     const newToken = ref("");
@@ -247,7 +252,7 @@ const App = {
         return {
           type: "warning" as const,
           title: "还没有客户端令牌",
-          detail: "客户端没有可填写的 Token，无法启动代理或检查更新。",
+          detail: "客户端没有可填写的 Token，无法启动代理。",
         };
       }
 
@@ -255,7 +260,7 @@ const App = {
         return {
           type: "error" as const,
           title: "所有令牌均已停用",
-          detail: "客户端请求更新接口会返回 token disabled，看起来就像没有更新。",
+          detail: "客户端请求会返回 token disabled，无法启动代理。",
         };
       }
 
@@ -263,16 +268,24 @@ const App = {
         return {
           type: "warning" as const,
           title: `${disabledTokenCount.value} 个令牌已停用`,
-          detail: "这些客户端无法检查更新，也无法正常代理请求。",
+          detail: "这些客户端无法正常启动代理请求。",
         };
       }
 
       return {
         type: "success" as const,
         title: `${enabledTokenCount.value} 个令牌可用`,
-        detail: "启用令牌可以检查客户端更新、下载安装包并启动代理。",
+        detail: "启用令牌可以启动代理并访问已授权模型。",
       };
     });
+
+    document.documentElement.dataset.theme = themeMode.value;
+
+    function toggleTheme() {
+      themeMode.value = themeMode.value === "dark" ? "light" : "dark";
+      localStorage.setItem("adminTheme", themeMode.value);
+      document.documentElement.dataset.theme = themeMode.value;
+    }
     const routeHealth = computed(() => {
       if (!enabledProviderCount.value) {
         return {
@@ -617,23 +630,6 @@ const App = {
         key: "enabled",
         render: (row) => h(NTag, { type: row.enabled ? "success" : "error" }, () => row.enabled ? "启用" : "停用"),
       },
-      {
-        title: "更新权限",
-        key: "updateAccess",
-        render: (row) =>
-          h(
-            "div",
-            { class: "diagnostic-cell" },
-            [
-              h(NTag, { type: row.enabled ? "success" : "error" }, () => row.enabled ? "可检查更新" : "会被拒绝"),
-              h(
-                "span",
-                { class: "muted-line" },
-                row.enabled ? "客户端可拉取版本信息" : "更新接口返回 token disabled",
-              ),
-            ],
-          ),
-      },
       { title: "备注", key: "note" },
       {
         title: "操作",
@@ -698,6 +694,7 @@ const App = {
       enabledTokenCount,
       expandedProviderIds,
       loginForm,
+      naiveTheme,
       newToken,
       overviewColumns,
       primaryRoutes,
@@ -711,7 +708,9 @@ const App = {
       tokenColumns,
       tokenForm,
       tokenHealth,
+      themeMode,
       toggleProvider,
+      toggleTheme,
       isProviderExpanded,
       openProviderModels,
       uploadInstaller,
@@ -725,11 +724,17 @@ const App = {
     };
   },
   template: `
-    <n-config-provider>
+    <n-config-provider :theme="naiveTheme">
       <n-message-provider>
         <n-layout class="app-shell">
           <n-layout-header class="header">
-            <n-space align="center">
+            <n-space align="center" class="header-actions">
+              <div v-if="store.authed && store.config" class="top-setting">
+                <span>刷新间隔</span>
+                <n-input-number v-model:value="store.config.pollIntervalSeconds" :min="5" :max="3600" size="small" />
+                <span>秒</span>
+              </div>
+              <n-button secondary @click="toggleTheme">{{ themeMode === 'dark' ? '亮色' : '暗色' }}</n-button>
               <span class="status">{{ store.authed ? '已登录' : '未登录' }}</span>
               <n-button v-if="store.authed" secondary @click="refresh">刷新数据</n-button>
               <n-button v-if="store.authed" tertiary @click="store.logout()">退出</n-button>
@@ -828,18 +833,11 @@ const App = {
                         <n-button type="primary" @click="saveConfig">保存配置</n-button>
                       </n-space>
                     </template>
-                    <n-form label-placement="top">
-                      <n-form-item label="配置自动刷新间隔（秒）">
-                        <n-input-number v-model:value="store.config.pollIntervalSeconds" :min="5" :max="3600" style="width: 220px" />
-                      </n-form-item>
-                    </n-form>
                     <n-space v-if="store.config.providers.length" vertical size="large">
                       <n-card v-for="provider in store.config.providers" :key="provider.id" embedded class="compact-provider-card">
                         <n-space justify="space-between" align="center" class="card-title-row">
-                          <div class="provider-summary">
+                          <div class="provider-summary provider-summary--compact">
                             <h3>{{ provider.name || '未命名服务商' }}</h3>
-                            <p>{{ provider.baseUrl || '未填写 Base URL' }}</p>
-                            <span>{{ routesForProvider(provider.id).length }} 个模型映射</span>
                           </div>
                           <n-space align="center">
                             <n-switch v-model:value="provider.enabled"><template #checked>启用</template><template #unchecked>停用</template></n-switch>
@@ -868,29 +866,22 @@ const App = {
                             <n-empty v-if="!routesForProvider(provider.id).length" description="该服务商暂无模型映射" />
                             <n-space v-else vertical size="small">
                               <div v-for="route in routesForProvider(provider.id)" :key="route.id" class="route-row">
-                                <div class="route-detail-body">
-                                  <n-space justify="space-between" align="center" class="route-edit-title">
-                                    <strong>{{ route.matchModel || '未命名模型' }} -> {{ route.upstreamModel || '未填写实际模型' }}</strong>
-                                    <n-space align="center">
-                                      <n-switch v-model:value="route.enabled"><template #checked>启用</template><template #unchecked>停用</template></n-switch>
-                                      <n-popconfirm positive-text="确认" negative-text="取消" @positive-click="deleteRoute(route)">
-                                        <template #trigger><n-button tertiary type="error">删除</n-button></template>
-                                        删除这条模型映射？
-                                      </n-popconfirm>
-                                    </n-space>
+                                <div class="route-detail-body route-detail-body--compact">
+                                  <div class="route-inline-field">
+                                    <span>客户端</span>
+                                    <n-input v-model:value="route.matchModel" placeholder="codex-best 或 *" />
+                                  </div>
+                                  <div class="route-inline-field">
+                                    <span>实际模型</span>
+                                    <n-input v-model:value="route.upstreamModel" placeholder="例如 deepseek-reasoner" />
+                                  </div>
+                                  <n-space align="center" class="route-row-actions">
+                                    <n-switch v-model:value="route.enabled"><template #checked>启用</template><template #unchecked>停用</template></n-switch>
+                                    <n-popconfirm positive-text="确认" negative-text="取消" @positive-click="deleteRoute(route)">
+                                      <template #trigger><n-button tertiary type="error">删除</n-button></template>
+                                      删除这条模型映射？
+                                    </n-popconfirm>
                                   </n-space>
-                                  <n-grid :cols="2" :x-gap="12" responsive="screen">
-                                    <n-grid-item>
-                                      <n-form-item label="客户端模型名">
-                                        <n-input v-model:value="route.matchModel" placeholder="codex-best 或 *" />
-                                      </n-form-item>
-                                    </n-grid-item>
-                                    <n-grid-item>
-                                      <n-form-item label="服务商实际模型">
-                                        <n-input v-model:value="route.upstreamModel" placeholder="例如 deepseek-reasoner" />
-                                      </n-form-item>
-                                    </n-grid-item>
-                                  </n-grid>
                                 </div>
                               </div>
                             </n-space>
@@ -915,9 +906,8 @@ const App = {
                     <n-space v-if="store.config.providers.length" vertical size="large">
                       <n-card v-for="provider in store.config.providers" :key="provider.id" embedded class="provider-model-card">
                         <n-space justify="space-between" align="center" class="card-title-row provider-model-top">
-                          <div class="provider-summary">
+                          <div class="provider-summary provider-summary--compact">
                             <h3>{{ provider.name || '未命名服务商' }}</h3>
-                            <p>{{ routesForProvider(provider.id).length }} 个模型映射，服务商{{ provider.enabled ? '已启用' : '已停用' }}</p>
                           </div>
                           <div v-if="routesForProvider(provider.id).length" class="provider-route-strip">
                             <div v-for="route in routesForProvider(provider.id)" :key="route.id" class="provider-route-inline">
