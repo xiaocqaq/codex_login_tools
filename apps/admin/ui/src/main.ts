@@ -181,7 +181,6 @@ const App = {
     const newToken = ref("");
     const showTokenModal = ref(false);
     const expandedProviderIds = ref<string[]>([]);
-    const expandedModelProviderIds = ref<string[]>([]);
     const clientReleaseVersion = ref("");
     const installerDownloadUrl = ref("");
     const installerFileName = ref("");
@@ -356,7 +355,7 @@ const App = {
         enabled: true,
         priority: 100,
       });
-      expandModelProvider(targetProviderId);
+      expandProvider(targetProviderId);
     }
 
     function deleteRoute(route: RouteConfig) {
@@ -375,22 +374,19 @@ const App = {
       expandedProviderIds.value = toggleId(expandedProviderIds.value, providerId);
     }
 
-    function toggleModelProvider(providerId: string) {
-      expandedModelProviderIds.value = toggleId(expandedModelProviderIds.value, providerId);
-    }
-
     function isProviderExpanded(providerId: string) {
       return expandedProviderIds.value.includes(providerId);
     }
 
-    function isModelProviderExpanded(providerId: string) {
-      return expandedModelProviderIds.value.includes(providerId);
+    function expandProvider(providerId: string) {
+      if (!expandedProviderIds.value.includes(providerId)) {
+        expandedProviderIds.value = [...expandedProviderIds.value, providerId];
+      }
     }
 
-    function expandModelProvider(providerId: string) {
-      if (!expandedModelProviderIds.value.includes(providerId)) {
-        expandedModelProviderIds.value = [...expandedModelProviderIds.value, providerId];
-      }
+    function openProviderModels(providerId: string) {
+      activeTab.value = "providers";
+      expandProvider(providerId);
     }
 
     async function saveConfig() {
@@ -700,7 +696,6 @@ const App = {
       enabledProviderCount,
       enabledRouteCount,
       enabledTokenCount,
-      expandedModelProviderIds,
       expandedProviderIds,
       loginForm,
       newToken,
@@ -716,10 +711,9 @@ const App = {
       tokenColumns,
       tokenForm,
       tokenHealth,
-      toggleModelProvider,
       toggleProvider,
-      isModelProviderExpanded,
       isProviderExpanded,
+      openProviderModels,
       uploadInstaller,
       saveInstallerUrl,
       uploadClientRelease,
@@ -870,6 +864,41 @@ const App = {
                           <n-form-item label="API Key">
                             <n-input v-model:value="provider.apiKey" type="password" show-password-on="click" placeholder="sk-..." />
                           </n-form-item>
+                          <div class="provider-model-editor">
+                            <n-space justify="space-between" align="center" class="route-edit-title">
+                              <strong>该服务商的模型</strong>
+                              <n-button secondary size="small" @click="addRoute(provider.id)">新增模型</n-button>
+                            </n-space>
+                            <n-empty v-if="!routesForProvider(provider.id).length" description="该服务商暂无模型映射" />
+                            <n-space v-else vertical size="small">
+                              <div v-for="route in routesForProvider(provider.id)" :key="route.id" class="route-row">
+                                <div class="route-detail-body">
+                                  <n-space justify="space-between" align="center" class="route-edit-title">
+                                    <strong>{{ route.matchModel || '未命名模型' }} -> {{ route.upstreamModel || '未填写实际模型' }}</strong>
+                                    <n-space align="center">
+                                      <n-switch v-model:value="route.enabled"><template #checked>启用</template><template #unchecked>停用</template></n-switch>
+                                      <n-popconfirm positive-text="确认" negative-text="取消" @positive-click="deleteRoute(route)">
+                                        <template #trigger><n-button tertiary type="error">删除</n-button></template>
+                                        删除这条模型映射？
+                                      </n-popconfirm>
+                                    </n-space>
+                                  </n-space>
+                                  <n-grid :cols="2" :x-gap="12" responsive="screen">
+                                    <n-grid-item>
+                                      <n-form-item label="客户端模型名">
+                                        <n-input v-model:value="route.matchModel" placeholder="codex-best 或 *" />
+                                      </n-form-item>
+                                    </n-grid-item>
+                                    <n-grid-item>
+                                      <n-form-item label="服务商实际模型">
+                                        <n-input v-model:value="route.upstreamModel" placeholder="例如 deepseek-reasoner" />
+                                      </n-form-item>
+                                    </n-grid-item>
+                                  </n-grid>
+                                </div>
+                              </div>
+                            </n-space>
+                          </div>
                         </div>
                       </n-card>
                     </n-space>
@@ -885,7 +914,7 @@ const App = {
                       </n-space>
                     </template>
                     <n-alert type="info" title="映射规则" class="compact-alert">
-                      每个服务商保留自己的模型映射。客户端请求 codex-best 这类模型名时，会按优先级在启用服务商中选择可用映射。
+                      模型详情现在在服务商配置里维护；这里只控制模型是否启用和当前优先级顺序。
                     </n-alert>
                     <n-space v-if="store.config.providers.length" vertical size="large">
                       <n-card v-for="provider in store.config.providers" :key="provider.id" embedded class="provider-model-card">
@@ -902,41 +931,9 @@ const App = {
                             </div>
                           </div>
                           <n-space align="center">
-                            <n-button secondary @click="addRoute(provider.id)">新增模型</n-button>
-                            <n-button secondary @click="toggleModelProvider(provider.id)">
-                              {{ isModelProviderExpanded(provider.id) ? '收起' : '展开模型' }}
-                            </n-button>
+                            <n-button secondary @click="openProviderModels(provider.id)">编辑模型详情</n-button>
                           </n-space>
                         </n-space>
-
-                        <div v-if="isModelProviderExpanded(provider.id)" class="fold-body">
-                          <n-empty v-if="!routesForProvider(provider.id).length" description="该服务商暂无模型映射" />
-                          <n-space v-else vertical size="small">
-                            <div v-for="route in routesForProvider(provider.id)" :key="route.id" class="route-row">
-                              <div class="route-detail-body">
-                                <n-space justify="space-between" align="center" class="route-edit-title">
-                                  <strong>{{ route.matchModel || '未命名模型' }} -> {{ route.upstreamModel || '未填写实际模型' }}</strong>
-                                  <n-popconfirm positive-text="确认" negative-text="取消" @positive-click="deleteRoute(route)">
-                                    <template #trigger><n-button tertiary type="error">删除</n-button></template>
-                                    删除这条模型映射？
-                                  </n-popconfirm>
-                                </n-space>
-                                <n-grid :cols="2" :x-gap="12" responsive="screen">
-                                  <n-grid-item>
-                                    <n-form-item label="客户端模型名">
-                                      <n-input v-model:value="route.matchModel" placeholder="codex-best 或 *" />
-                                    </n-form-item>
-                                  </n-grid-item>
-                                  <n-grid-item>
-                                    <n-form-item label="服务商实际模型">
-                                      <n-input v-model:value="route.upstreamModel" placeholder="例如 deepseek-reasoner" />
-                                    </n-form-item>
-                                  </n-grid-item>
-                                </n-grid>
-                              </div>
-                            </div>
-                          </n-space>
-                        </div>
                       </n-card>
                     </n-space>
                     <n-empty v-else description="暂无服务商，请先新增服务商" />
