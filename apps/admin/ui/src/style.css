@@ -453,6 +453,10 @@ body {
   word-break: break-all;
 }
 
+.token-provider-select {
+  min-width: 280px;
+}
+
 .upload-button {
   position: relative;
   display: inline-flex;

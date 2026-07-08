@@ -18,6 +18,7 @@ import {
   NMessageProvider,
   NModal,
   NPopconfirm,
+  NSelect,
   NSpace,
   NStatistic,
   NSwitch,
@@ -63,6 +64,7 @@ interface TokenRow {
   tokenValue: string;
   tokenPreview: string;
   enabled: boolean;
+  allowedRouteIds?: string[];
   lastUsedAt?: string;
   inputTokens: number;
   outputTokens: number;
@@ -405,6 +407,48 @@ const App = {
       return `${routes.length} 个模型，${enabledCount} 个启用`;
     }
 
+    function providerSelectOptions() {
+      return store.config?.providers.map((provider) => ({
+        label: provider.name || "未命名服务商",
+        value: provider.id,
+      })) ?? [];
+    }
+
+    function selectedProviderIdsForToken(row: TokenRow) {
+      if (!store.config) return [];
+      const allProviderIds = store.config.providers.map((provider) => provider.id);
+      const allowedRouteIds = row.allowedRouteIds ?? [];
+      if (!allowedRouteIds.length) return allProviderIds;
+
+      const allowed = new Set(allowedRouteIds);
+      return store.config.providers
+        .filter((provider) => routesForProvider(provider.id).some((route) => allowed.has(route.id)))
+        .map((provider) => provider.id);
+    }
+
+    async function setTokenProviders(row: TokenRow, providerIds: string[]) {
+      if (!store.config) return;
+      const allProviderIds = store.config.providers.map((provider) => provider.id);
+      const selectedProviderIds = providerIds.length ? providerIds : allProviderIds;
+      const isAllSelected = selectedProviderIds.length === allProviderIds.length;
+      const selected = new Set(selectedProviderIds);
+      const allowedRouteIds = isAllSelected
+        ? []
+        : store.config.routes
+            .filter((route) => selected.has(route.providerId))
+            .map((route) => route.id);
+
+      try {
+        await store.api(`/api/admin/tokens/${row.id}`, {
+          method: "PATCH",
+          body: { allowedRouteIds },
+        });
+        await store.loadAll();
+      } catch (error) {
+        message.error(error instanceof Error ? error.message : "服务商权限保存失败");
+      }
+    }
+
     function normalizeProviderPriorities() {
       if (!store.config) return [];
       const providerRank = new Map(store.config.providers.map((provider, index) => [provider.id, index]));
@@ -704,6 +748,21 @@ const App = {
         key: "enabled",
         render: (row) => h(NTag, { type: row.enabled ? "success" : "error" }, () => row.enabled ? "启用" : "停用"),
       },
+      {
+        title: "可用服务商",
+        key: "allowedProviders",
+        render: (row) =>
+          h(NSelect, {
+            class: "token-provider-select",
+            multiple: true,
+            clearable: false,
+            maxTagCount: 2,
+            options: providerSelectOptions(),
+            value: selectedProviderIdsForToken(row),
+            placeholder: "默认全选",
+            onUpdateValue: (value: string[]) => setTokenProviders(row, value),
+          }),
+      },
       { title: "备注", key: "note" },
       {
         title: "操作",
@@ -777,6 +836,7 @@ const App = {
       routesForProvider,
       saveConfig,
       setTokenEnabled,
+      setTokenProviders,
       showTokenModal,
       store,
       tokenColumns,
@@ -1360,6 +1420,7 @@ createApp(App)
   .component("NMessageProvider", NMessageProvider)
   .component("NModal", NModal)
   .component("NPopconfirm", NPopconfirm)
+  .component("NSelect", NSelect)
   .component("NSpace", NSpace)
   .component("NStatistic", NStatistic)
   .component("NSwitch", NSwitch)
