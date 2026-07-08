@@ -27,7 +27,7 @@ import {
   createDiscreteApi,
   darkTheme,
 } from "naive-ui";
-import { createApp, computed, h, reactive, ref } from "vue";
+import { createApp, computed, h, onUnmounted, reactive, ref, watch } from "vue";
 import type { DataTableColumns } from "naive-ui";
 import "./style.css";
 
@@ -85,6 +85,8 @@ interface Dashboard {
   };
   tokens: TokenRow[];
 }
+
+type ThemeMode = "system" | "light" | "dark";
 
 interface InstallerStatus {
   uploaded: boolean;
@@ -177,10 +179,16 @@ const App = {
   setup() {
     const store = useAdminStore();
     const activeTab = ref("overview");
+    const systemThemeQuery = window.matchMedia?.("(prefers-color-scheme: dark)");
     const storedTheme = localStorage.getItem("adminTheme");
-    const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
-    const themeMode = ref<"light" | "dark">(storedTheme === "light" || storedTheme === "dark" ? storedTheme : prefersDark ? "dark" : "light");
-    const naiveTheme = computed(() => themeMode.value === "dark" ? darkTheme : null);
+    const themeMode = ref<ThemeMode>(storedTheme === "light" || storedTheme === "dark" || storedTheme === "system" ? storedTheme : "system");
+    const systemTheme = ref<"light" | "dark">(systemThemeQuery?.matches ? "dark" : "light");
+    const activeTheme = computed(() => themeMode.value === "system" ? systemTheme.value : themeMode.value);
+    const naiveTheme = computed(() => activeTheme.value === "dark" ? darkTheme : null);
+    const themeButtonText = computed(() => {
+      if (themeMode.value === "system") return `系统${activeTheme.value === "dark" ? "暗色" : "亮色"}`;
+      return themeMode.value === "dark" ? "暗色" : "亮色";
+    });
     const loginForm = reactive({ username: "admin", password: "" });
     const tokenForm = reactive({ name: "", note: "" });
     const newToken = ref("");
@@ -279,12 +287,20 @@ const App = {
       };
     });
 
-    document.documentElement.dataset.theme = themeMode.value;
+    const handleSystemThemeChange = (event: MediaQueryListEvent) => {
+      systemTheme.value = event.matches ? "dark" : "light";
+    };
+
+    systemThemeQuery?.addEventListener("change", handleSystemThemeChange);
+    onUnmounted(() => systemThemeQuery?.removeEventListener("change", handleSystemThemeChange));
+    watch(activeTheme, (theme) => {
+      document.documentElement.dataset.theme = theme;
+    }, { immediate: true });
 
     function toggleTheme() {
-      themeMode.value = themeMode.value === "dark" ? "light" : "dark";
+      const options: ThemeMode[] = ["system", "light", "dark"];
+      themeMode.value = options[(options.indexOf(themeMode.value) + 1) % options.length];
       localStorage.setItem("adminTheme", themeMode.value);
-      document.documentElement.dataset.theme = themeMode.value;
     }
     const routeHealth = computed(() => {
       if (!enabledProviderCount.value) {
@@ -712,6 +728,7 @@ const App = {
       tokenColumns,
       tokenForm,
       tokenHealth,
+      themeButtonText,
       themeMode,
       toggleProvider,
       toggleTheme,
@@ -735,7 +752,7 @@ const App = {
           <n-layout-header class="header">
             <div class="brand-title">管理端</div>
             <n-space align="center" class="header-actions">
-              <n-button secondary @click="toggleTheme">{{ themeMode === 'dark' ? '亮色' : '暗色' }}</n-button>
+              <n-button secondary @click="toggleTheme">{{ themeButtonText }}</n-button>
               <span class="status">{{ store.authed ? '已登录' : '未登录' }}</span>
               <n-button v-if="store.authed" secondary @click="refresh">刷新数据</n-button>
               <n-button v-if="store.authed" tertiary @click="store.logout()">退出</n-button>
