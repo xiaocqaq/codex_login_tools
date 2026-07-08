@@ -729,10 +729,6 @@ const App = {
       <n-message-provider>
         <n-layout class="app-shell">
           <n-layout-header class="header">
-            <div>
-              <h1>Codex Gateway Admin</h1>
-              <p>管理客户端令牌、服务商、模型映射和使用量。</p>
-            </div>
             <n-space align="center">
               <span class="status">{{ store.authed ? '已登录' : '未登录' }}</span>
               <n-button v-if="store.authed" secondary @click="refresh">刷新数据</n-button>

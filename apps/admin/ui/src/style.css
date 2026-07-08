@@ -18,23 +18,12 @@ body {
 .header {
   width: min(1240px, calc(100% - 40px));
   margin: 0 auto;
-  padding: 28px 0 18px;
+  padding: 22px 0 14px;
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
+  align-items: center;
+  justify-content: flex-end;
   gap: 24px;
   background: transparent;
-}
-
-.header h1 {
-  margin: 0 0 4px;
-  font-size: 30px;
-  line-height: 1.15;
-}
-
-.header p {
-  margin: 0;
-  color: #64727c;
 }
 
 .content {
@@ -384,8 +373,7 @@ body {
 @media (max-width: 720px) {
   .header {
     width: min(100% - 24px, 1240px);
-    align-items: flex-start;
-    flex-direction: column;
+    justify-content: flex-start;
   }
 
   .content {
