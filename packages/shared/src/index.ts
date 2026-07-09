@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export * from "./cad-manifest.js";
+
 const providerSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),

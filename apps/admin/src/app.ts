@@ -17,6 +17,8 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 import { createAdminStore, mergeRedactedApiKeys, type UsageCounters } from "./store.js";
+import { createCadStore } from "./cad-store.js";
+import { registerCadRoutes } from "./cad-routes.js";
 
 export interface AdminServerOptions {
   adminUser: string;
@@ -493,6 +495,16 @@ export function buildAdminServer(options: AdminServerOptions): FastifyInstance {
     reply.header("content-disposition", `attachment; filename="${encodeURIComponent(status.fileName)}"`);
     reply.header("x-version", status.version);
     return reply.send(createReadStream(paths.file));
+  });
+
+  const cadStore = createCadStore({
+    baseDir: join(options.dataPath ? dirname(options.dataPath) : "data", "cad"),
+  });
+  registerCadRoutes(app, {
+    cadStore,
+    adminStore: store,
+    adminToken,
+    clientToken: options.clientToken,
   });
 
   return app;

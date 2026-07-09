@@ -12,6 +12,10 @@
     "./codex-config": {
       "types": "./dist/codex-config.d.ts",
       "default": "./dist/codex-config.js"
+    },
+    "./codex-cad-config": {
+      "types": "./dist/codex-cad-config.d.ts",
+      "default": "./dist/codex-cad-config.js"
     }
   },
   "scripts": {

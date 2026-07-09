@@ -236,6 +236,9 @@ public sealed class MainForm : Form
                     StopGatewayAndRestoreConfig();
                     throw;
                 }
+
+                // CAD 能力包同步（可选增强）：失败不阻断代理启动
+                await SyncCadCapabilitiesAsync();
             }
 
             UpdateGatewayStatus();
@@ -463,6 +466,31 @@ public sealed class MainForm : Form
 
         CodexConfigWriter.Restore();
         CodexAuthWriter.Restore();
+        try
+        {
+            CadSync.RemoveMcpConfig();
+        }
+        catch (Exception error)
+        {
+            ClientLog.Write($"移除 CAD MCP 配置失败：{error.Message}");
+        }
+    }
+
+    // 同步 CAD 能力包：拉清单、增量下载校验、写 MCP 配置。失败仅提示，不阻断代理。
+    private async Task SyncCadCapabilitiesAsync()
+    {
+        try
+        {
+            _codexStatus.Text = "正在同步 CAD 能力包。";
+            var progress = new Progress<CodexInstallProgress>(ReportUpdateProgress);
+            var result = await CadSync.SyncAsync(_settings, progress);
+            _codexStatus.Text = result.Changed ? "CAD 能力包已更新。" : "CAD 能力包已是最新。";
+        }
+        catch (Exception error)
+        {
+            ClientLog.Write($"CAD 能力包同步失败：{error.Message}");
+            _codexStatus.Text = "CAD 能力包同步失败（不影响代理使用）。";
+        }
     }
 
     private void OnGatewayProxyBlocked(object? sender, string message)
