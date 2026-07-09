@@ -1,0 +1,27 @@
+[project]
+name = "cad-dxf-mcp"
+version = "0.1.0"
+description = "基坑支护 CAD 生成/计算 MCP（默认全本地执行）"
+requires-python = ">=3.11"
+dependencies = [
+    "ezdxf>=1.4",
+]
+
+[project.optional-dependencies]
+# MCP server 层依赖（真机安装）；核心计算/绘图不依赖它，本机即可单测
+mcp = ["mcp>=1.2"]
+dev = ["pytest>=8", "ezdxf>=1.4"]
+
+[project.scripts]
+cad-dxf-mcp = "cad_dxf_mcp.server:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["cad_dxf_mcp"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
