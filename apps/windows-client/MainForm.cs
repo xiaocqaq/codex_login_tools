@@ -65,6 +65,11 @@ public sealed class MainForm : Form
                 TopMost = false;
             }
 
+            if (!_settings.TutorialSeen)
+            {
+                ShowTutorial();
+            }
+
             _ = RefreshCodexStatusAsync();
             _ = CheckForClientUpdateAsync();
         };
@@ -261,6 +266,15 @@ public sealed class MainForm : Form
         UpdateGatewayStatus();
         _ = RefreshCodexStatusAsync();
         return true;
+    }
+
+    private void ShowTutorial()
+    {
+        var images = TutorialDialog.LoadTutorialImages();
+        using var dialog = new TutorialDialog(images);
+        dialog.ShowDialog(this);
+        _settings.TutorialSeen = true;
+        SettingsStore.Save(_settings);
     }
 
     private void ReadSettings()

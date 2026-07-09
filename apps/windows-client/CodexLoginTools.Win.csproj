@@ -10,11 +10,12 @@
     <AssemblyName>CodexProxy</AssemblyName>
     <Product>Codex 代理</Product>
     <FileDescription>Codex 代理</FileDescription>
-    <Version>0.2.1</Version>
+    <Version>0.2.2</Version>
   </PropertyGroup>
 
   <ItemGroup>
     <Content Include="Assets\app-icon.ico" />
+    <EmbeddedResource Include="Assets\tutorial\**" />
   </ItemGroup>
 
 </Project>
