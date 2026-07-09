@@ -1,6 +1,6 @@
 namespace CodexLoginTools.Win;
 
-public sealed class SettingsDialog : Form
+public sealed class SettingsDialog : ScaledForm
 {
     private static readonly Color Background = Color.FromArgb(242, 247, 248);
     private static readonly Color Card = Color.White;
@@ -29,8 +29,7 @@ public sealed class SettingsDialog : Form
             GatewayPort = 17861
         };
 
-        AutoScaleMode = AutoScaleMode.None;
-        ClientSize = new Size(480, 300);
+        ClientSize = new Size(480, 322);
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
@@ -50,7 +49,7 @@ public sealed class SettingsDialog : Form
         e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
         using var cardBrush = new SolidBrush(Card);
         using var linePen = new Pen(Line);
-        using var card = RoundedRect(new Rectangle(24, 24, 432, 206), 14);
+        using var card = RoundedRect(ScaleRect(24, 24, 432, 214), ScaleInt(14));
         e.Graphics.FillPath(cardBrush, card);
         e.Graphics.DrawPath(linePen, card);
     }
@@ -76,12 +75,24 @@ public sealed class SettingsDialog : Form
         _token.Text = _settings.ClientToken;
         Controls.Add(_token);
 
-        _installStatus.Location = new Point(48, 144);
-        _installStatus.Size = new Size(250, 28);
+        _installStatus.Location = new Point(48, 180);
+        _installStatus.Size = new Size(384, 24);
+        _installStatus.AutoEllipsis = true;
         _installStatus.ForeColor = Muted;
         _installStatus.BackColor = Card;
         _installStatus.Text = "Codex 桌面版安装状态";
         Controls.Add(_installStatus);
+
+        Controls.Add(new Label
+        {
+            AutoSize = false,
+            Location = new Point(48, 146),
+            Size = new Size(160, 24),
+            Text = "Codex 桌面版",
+            Font = new Font(Font.FontFamily, 10F, FontStyle.Bold),
+            ForeColor = TextColor,
+            BackColor = Card
+        });
 
         _installButton.Location = new Point(312, 138);
         _installButton.Size = new Size(120, 34);
@@ -94,16 +105,16 @@ public sealed class SettingsDialog : Form
         _installButton.Click += async (_, _) => await InstallCodexAsync();
         Controls.Add(_installButton);
 
-        _installProgress.Location = new Point(48, 192);
+        _installProgress.Location = new Point(48, 208);
         _installProgress.Size = new Size(384, 12);
         _installProgress.Visible = false;
         Controls.Add(_installProgress);
 
-        var cancel = BuildFooterButton("取消", new Point(224, 244), Color.White, Primary, Line);
+        var cancel = BuildFooterButton("取消", new Point(224, 266), Color.White, Primary, Line);
         cancel.DialogResult = DialogResult.Cancel;
         Controls.Add(cancel);
 
-        var save = BuildFooterButton("保存", new Point(344, 244), Primary, Color.White, Primary);
+        var save = BuildFooterButton("保存", new Point(344, 266), Primary, Color.White, Primary);
         save.Click += (_, _) =>
         {
             DialogResult = DialogResult.OK;

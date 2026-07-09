@@ -5,12 +5,13 @@
     <TargetFramework>net9.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationIcon>Assets\app-icon.ico</ApplicationIcon>
     <AssemblyName>CodexProxy</AssemblyName>
     <Product>Codex 代理</Product>
     <FileDescription>Codex 代理</FileDescription>
-    <Version>0.2.2</Version>
+    <Version>0.2.3</Version>
   </PropertyGroup>
 
   <ItemGroup>

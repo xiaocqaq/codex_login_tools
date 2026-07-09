@@ -7,7 +7,7 @@ public enum AppDialogKind
     Error
 }
 
-public sealed class AppDialog : Form
+public sealed class AppDialog : ScaledForm
 {
     private static readonly Color Background = Color.FromArgb(242, 247, 248);
     private static readonly Color Card = Color.White;
@@ -28,7 +28,6 @@ public sealed class AppDialog : Form
     {
         _message = message;
         _kind = kind;
-        AutoScaleMode = AutoScaleMode.None;
         ClientSize = DialogSize;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
@@ -80,7 +79,7 @@ public sealed class AppDialog : Form
         e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
         using var cardBrush = new SolidBrush(Card);
         using var linePen = new Pen(Line);
-        using var card = RoundedRect(new Rectangle(24, 28, 372, 128), 14);
+        using var card = RoundedRect(ScaleRect(24, 28, 372, 128), ScaleInt(14));
         e.Graphics.FillPath(cardBrush, card);
         e.Graphics.DrawPath(linePen, card);
     }
@@ -98,6 +97,7 @@ public sealed class AppDialog : Form
         Controls.Add(new Label
         {
             AutoSize = false,
+            AutoEllipsis = true,
             Location = new Point(106, 52),
             Size = new Size(260, 80),
             Text = _message,
@@ -199,7 +199,7 @@ public sealed class AppDialog : Form
     }
 }
 
-public sealed class ProgressDialog : Form
+public sealed class ProgressDialog : ScaledForm
 {
     private static readonly Color Background = Color.FromArgb(242, 247, 248);
     private static readonly Color Card = Color.White;
@@ -212,7 +212,6 @@ public sealed class ProgressDialog : Form
 
     public ProgressDialog(string title, string message)
     {
-        AutoScaleMode = AutoScaleMode.None;
         ClientSize = new Size(420, 150);
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
@@ -250,7 +249,7 @@ public sealed class ProgressDialog : Form
         e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
         using var cardBrush = new SolidBrush(Card);
         using var linePen = new Pen(Line);
-        using var card = RoundedRect(new Rectangle(24, 24, 372, 92), 14);
+        using var card = RoundedRect(ScaleRect(24, 24, 372, 92), ScaleInt(14));
         e.Graphics.FillPath(cardBrush, card);
         e.Graphics.DrawPath(linePen, card);
     }
@@ -259,6 +258,7 @@ public sealed class ProgressDialog : Form
     {
         _message.Location = new Point(48, 48);
         _message.Size = new Size(326, 28);
+        _message.AutoEllipsis = true;
         _message.Text = message;
         _message.ForeColor = Muted;
         _message.BackColor = Card;

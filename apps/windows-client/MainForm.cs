@@ -2,7 +2,7 @@ using System.Reflection;
 
 namespace CodexLoginTools.Win;
 
-public sealed class MainForm : Form
+public sealed class MainForm : ScaledForm
 {
     private static readonly Color Background = Color.FromArgb(242, 247, 248);
     private static readonly Color Card = Color.FromArgb(255, 255, 255);
@@ -21,6 +21,7 @@ public sealed class MainForm : Form
     private readonly ProgressBar _updateProgress = new();
     private readonly ActionButton _toggle = new();
     private readonly ActionButton _settingsButton = new();
+    private readonly ActionButton _helpButton = new();
     private readonly NotifyIcon _trayIcon = new();
     private readonly GatewayServer _gateway;
     private AppSettings _settings;
@@ -34,7 +35,6 @@ public sealed class MainForm : Form
         _gateway = new GatewayServer(_settings);
         _gateway.ProxyBlocked += OnGatewayProxyBlocked;
 
-        AutoScaleMode = AutoScaleMode.None;
         ClientSize = new Size(560, 410);
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
@@ -82,8 +82,8 @@ public sealed class MainForm : Form
         e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
         using var cardBrush = new SolidBrush(Card);
         using var linePen = new Pen(Line);
-        var cardRect = new Rectangle(32, 152, 496, 170);
-        using var path = RoundedRect(cardRect, 14);
+        var cardRect = ScaleRect(32, 152, 496, 170);
+        using var path = RoundedRect(cardRect, ScaleInt(14));
         e.Graphics.FillPath(cardBrush, path);
         e.Graphics.DrawPath(linePen, path);
     }
@@ -119,13 +119,25 @@ public sealed class MainForm : Form
             BackColor = Background
         });
 
-        _versionLabel.Location = new Point(386, 18);
+        _versionLabel.Location = new Point(300, 18);
         _versionLabel.Size = new Size(84, 28);
         _versionLabel.Text = $"v{GetCurrentVersion()}";
         _versionLabel.TextAlign = ContentAlignment.MiddleRight;
         _versionLabel.ForeColor = Muted;
         _versionLabel.BackColor = Background;
         Controls.Add(_versionLabel);
+
+        _helpButton.Text = "帮助";
+        _helpButton.Location = new Point(416, 16);
+        _helpButton.Size = new Size(56, 30);
+        _helpButton.Font = new Font(Font.FontFamily, 9F, FontStyle.Bold);
+        _helpButton.NormalColor = Color.White;
+        _helpButton.HoverColor = Color.FromArgb(232, 241, 244);
+        _helpButton.BorderColor = Line;
+        _helpButton.BackColor = Background;
+        _helpButton.ForeColor = Primary;
+        _helpButton.Click += (_, _) => ShowTutorial();
+        Controls.Add(_helpButton);
 
         _settingsButton.Text = "设置";
         _settingsButton.Location = new Point(480, 16);
@@ -158,12 +170,14 @@ public sealed class MainForm : Form
 
         _statusDetail.Location = new Point(156, 275);
         _statusDetail.Size = new Size(344, 26);
+        _statusDetail.AutoEllipsis = true;
         _statusDetail.ForeColor = Muted;
         _statusDetail.BackColor = Card;
         Controls.Add(_statusDetail);
 
         _codexStatus.Location = new Point(38, 350);
         _codexStatus.Size = new Size(490, 28);
+        _codexStatus.AutoEllipsis = true;
         _codexStatus.ForeColor = Muted;
         _codexStatus.BackColor = Background;
         Controls.Add(_codexStatus);

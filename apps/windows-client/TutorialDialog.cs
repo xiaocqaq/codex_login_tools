@@ -1,6 +1,6 @@
 namespace CodexLoginTools.Win;
 
-public sealed class TutorialDialog : Form
+public sealed class TutorialDialog : ScaledForm
 {
     private static readonly Color Background = Color.FromArgb(242, 247, 248);
     private static readonly Color Card = Color.White;
@@ -35,7 +35,6 @@ public sealed class TutorialDialog : Form
         _nextButton = BuildNavButton("下一步", true);
         _skipButton = BuildNavButton("跳过", false);
 
-        AutoScaleMode = AutoScaleMode.None;
         var dialogWidth = ImageWidth + EdgePad * 2;
         var dialogHeight = EdgePad + ImageHeight + 40 + FooterHeight;
         ClientSize = new Size(dialogWidth, dialogHeight);
