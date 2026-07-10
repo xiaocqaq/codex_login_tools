@@ -32,6 +32,9 @@ public sealed class InstallerDownloadStatus
 
     [JsonPropertyName("hasFile")]
     public bool HasFile { get; set; }
+
+    [JsonPropertyName("storeProductId")]
+    public string StoreProductId { get; set; } = "";
 }
 
 public static class CodexInstaller
@@ -145,7 +148,24 @@ public static class CodexInstaller
     {
         try
         {
-            var download = await DownloadInstallerAsync(settings, progress).ConfigureAwait(false);
+            progress?.Report(new CodexInstallProgress
+            {
+                Message = "正在连接安装包服务器。",
+                Percent = 0
+            });
+            var status = await GetInstallerStatusAsync(settings).ConfigureAwait(false);
+            if (!status.Uploaded)
+            {
+                return new CodexInstallResult { Success = false, Message = "服务端还没有配置 Codex 桌面版安装包。" };
+            }
+
+            // 商店安装优先：admin 配置了微软商店 Product ID 时走 winget 静默安装，失败回退拉起商店。
+            if (!string.IsNullOrWhiteSpace(status.StoreProductId))
+            {
+                return await InstallFromStoreAsync(status.StoreProductId.Trim(), progress).ConfigureAwait(false);
+            }
+
+            var download = await DownloadInstallerAsync(settings, status, progress).ConfigureAwait(false);
             if (!download.Success)
             {
                 return download;
@@ -170,19 +190,9 @@ public static class CodexInstaller
 
     private static async Task<CodexInstallResult> DownloadInstallerAsync(
         AppSettings settings,
+        InstallerDownloadStatus status,
         IProgress<CodexInstallProgress>? progress)
     {
-        progress?.Report(new CodexInstallProgress
-        {
-            Message = "正在连接安装包服务器。",
-            Percent = 0
-        });
-        var status = await GetInstallerStatusAsync(settings).ConfigureAwait(false);
-        if (!status.Uploaded)
-        {
-            return new CodexInstallResult { Success = false, Message = "服务端还没有配置 Codex 桌面版安装包。" };
-        }
-
         return !string.IsNullOrWhiteSpace(status.DownloadUrl)
             ? await DownloadExternalInstallerAsync(settings, status, progress).ConfigureAwait(false)
             : await DownloadServerInstallerAsync(settings, progress, forceFileSource: false).ConfigureAwait(false);
@@ -360,6 +370,146 @@ public static class CodexInstaller
         }
 
         return await RunProcessInstallerAsync(installerPath, "", installerPath, useShellExecute: true).ConfigureAwait(false);
+    }
+
+    private static async Task<CodexInstallResult> InstallFromStoreAsync(
+        string productId,
+        IProgress<CodexInstallProgress>? progress)
+    {
+        if (await IsCodexInstalledAsync().ConfigureAwait(false))
+        {
+            return new CodexInstallResult { Success = true, Message = "Codex 桌面版已安装完成。" };
+        }
+
+        progress?.Report(new CodexInstallProgress
+        {
+            Message = "正在通过微软商店安装 Codex 桌面版。",
+            Percent = null
+        });
+
+        var wingetResult = await TryInstallWithWingetAsync(productId, progress).ConfigureAwait(false);
+        if (wingetResult.Success)
+        {
+            return wingetResult;
+        }
+
+        // winget 不可用或静默安装失败，回退拉起微软商店让用户手动安装。
+        ClientLog.Write("winget 商店安装失败，回退拉起微软商店：" + wingetResult.Message);
+        return OpenStorePage(productId);
+    }
+
+    private static async Task<CodexInstallResult> TryInstallWithWingetAsync(
+        string productId,
+        IProgress<CodexInstallProgress>? progress)
+    {
+        var output = new StringBuilder();
+        try
+        {
+            var arguments =
+                $"install --id {productId} --exact --source msstore " +
+                "--accept-package-agreements --accept-source-agreements --silent --disable-interactivity";
+            using var process = Process.Start(new ProcessStartInfo
+            {
+                FileName = "winget.exe",
+                Arguments = arguments,
+                CreateNoWindow = true,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                StandardOutputEncoding = Encoding.UTF8,
+                StandardErrorEncoding = Encoding.UTF8
+            });
+            if (process is null)
+            {
+                return new CodexInstallResult { Success = false, Message = "无法启动 winget。" };
+            }
+
+            process.OutputDataReceived += (_, data) => AppendLine(output, data.Data);
+            process.ErrorDataReceived += (_, data) => AppendLine(output, data.Data);
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+
+            progress?.Report(new CodexInstallProgress
+            {
+                Message = "正在使用 winget 静默安装（首次可能需较长时间）。",
+                Percent = null
+            });
+
+            using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(15));
+            try
+            {
+                await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                process.Kill(entireProcessTree: true);
+                return new CodexInstallResult
+                {
+                    Success = false,
+                    Message = "winget 安装超时。",
+                    Output = output.ToString()
+                };
+            }
+
+            var installed = await IsCodexInstalledAsync().ConfigureAwait(false);
+            if (process.ExitCode == 0 && installed)
+            {
+                return new CodexInstallResult
+                {
+                    Success = true,
+                    Message = "Codex 桌面版已通过微软商店安装完成。",
+                    Output = output.ToString()
+                };
+            }
+
+            return new CodexInstallResult
+            {
+                Success = false,
+                Message = $"winget 安装未完成，退出码：{process.ExitCode}。",
+                Output = output.ToString()
+            };
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            // winget.exe 不存在（旧系统或未安装应用安装程序）。
+            return new CodexInstallResult { Success = false, Message = "未找到 winget。" };
+        }
+        catch (Exception error)
+        {
+            return new CodexInstallResult
+            {
+                Success = false,
+                Message = error.Message,
+                Output = output.ToString()
+            };
+        }
+    }
+
+    private static CodexInstallResult OpenStorePage(string productId)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = $"ms-windows-store://pdp/?ProductId={productId}",
+                UseShellExecute = true
+            });
+        }
+        catch (Exception error)
+        {
+            ClientLog.Write("拉起微软商店失败：" + error.Message);
+            return new CodexInstallResult
+            {
+                Success = false,
+                Message = "无法自动安装，也无法打开微软商店。请手动在微软商店搜索并安装 Codex 桌面版。"
+            };
+        }
+
+        return new CodexInstallResult
+        {
+            Success = false,
+            Message = "已打开微软商店，请点击「获取 / 安装」完成 Codex 桌面版安装，装好后返回本程序重试。"
+        };
     }
 
     private static async Task<CodexInstallResult> RunPowerShellInstallerAsync(string command, string installerPath)

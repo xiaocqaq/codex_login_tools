@@ -44,6 +44,7 @@ interface InstallerMeta {
   size: number;
   updatedAt: string;
   downloadUrl?: string;
+  storeProductId?: string;
 }
 
 interface ClientReleaseMeta extends InstallerMeta {
@@ -51,15 +52,21 @@ interface ClientReleaseMeta extends InstallerMeta {
 }
 
 type ManagedPackageStatus<TMeta extends InstallerMeta> =
-  | { uploaded: false; hasFile: false; hasUrl: false }
+  | { uploaded: false; hasFile: false; hasUrl: false; hasStore: false }
   | ({
       uploaded: true;
       hasFile: boolean;
       hasUrl: boolean;
-      preferred: "url" | "file";
+      hasStore: boolean;
+      preferred: "url" | "file" | "store";
       file?: TMeta;
       url?: TMeta;
-    } & TMeta);
+      storeProductId?: string;
+    } & Partial<TMeta>);
+
+interface InstallerStoreBody {
+  storeProductId?: string;
+}
 
 interface InstallerUrlBody {
   downloadUrl?: string;
@@ -272,6 +279,33 @@ export function buildAdminServer(options: AdminServerOptions): FastifyInstance {
     return { ok: true, installer: getFileStatus<InstallerMeta>(options.dataPath, "codex-desktop-installer") };
   });
 
+  app.put<{ Body: InstallerStoreBody }>("/api/admin/codex-desktop-installer-store", async (request, reply) => {
+    if (!hasBearerToken(request.headers.authorization, adminToken)) {
+      return reply.status(401).send({ error: "unauthorized" });
+    }
+
+    const storeProductId = request.body?.storeProductId?.trim();
+    if (!storeProductId) {
+      return reply.status(400).send({ error: "storeProductId is required" });
+    }
+
+    const paths = getManagedFilePaths(options.dataPath, "codex-desktop-installer");
+    mkdirSync(paths.dir, { recursive: true });
+    const meta = { storeProductId, updatedAt: new Date().toISOString() };
+    writeFileSync(paths.storeMeta, `${JSON.stringify(meta, null, 2)}\n`, "utf8");
+    return { ok: true, installer: getFileStatus<InstallerMeta>(options.dataPath, "codex-desktop-installer") };
+  });
+
+  app.delete("/api/admin/codex-desktop-installer-store", async (request, reply) => {
+    if (!hasBearerToken(request.headers.authorization, adminToken)) {
+      return reply.status(401).send({ error: "unauthorized" });
+    }
+
+    const paths = getManagedFilePaths(options.dataPath, "codex-desktop-installer");
+    rmSync(paths.storeMeta, { force: true });
+    return { ok: true, installer: getFileStatus<InstallerMeta>(options.dataPath, "codex-desktop-installer") };
+  });
+
   app.delete("/api/admin/codex-desktop-installer", async (request, reply) => {
     if (!hasBearerToken(request.headers.authorization, adminToken)) {
       return reply.status(401).send({ error: "unauthorized" });
@@ -285,11 +319,14 @@ export function buildAdminServer(options: AdminServerOptions): FastifyInstance {
     } else if (source === "url") {
       rmSync(paths.urlMeta, { force: true });
       removeLegacyUrlMeta(paths.legacyMeta);
+    } else if (source === "store") {
+      rmSync(paths.storeMeta, { force: true });
     } else {
       rmSync(paths.file, { force: true });
       rmSync(paths.fileMeta, { force: true });
       rmSync(paths.urlMeta, { force: true });
       rmSync(paths.legacyMeta, { force: true });
+      rmSync(paths.storeMeta, { force: true });
     }
     return { ok: true };
   });
@@ -444,7 +481,7 @@ export function buildAdminServer(options: AdminServerOptions): FastifyInstance {
     }
     reply.header("content-type", "application/octet-stream");
     reply.header("content-length", String(status.size));
-    reply.header("content-disposition", `attachment; filename="${encodeURIComponent(status.fileName)}"`);
+    reply.header("content-disposition", `attachment; filename="${encodeURIComponent(status.fileName ?? "codex-desktop-installer")}"`);
     return reply.send(createReadStream(paths.file));
   });
 
@@ -490,8 +527,8 @@ export function buildAdminServer(options: AdminServerOptions): FastifyInstance {
     }
     reply.header("content-type", "application/octet-stream");
     reply.header("content-length", String(status.size));
-    reply.header("content-disposition", `attachment; filename="${encodeURIComponent(status.fileName)}"`);
-    reply.header("x-version", status.version);
+    reply.header("content-disposition", `attachment; filename="${encodeURIComponent(status.fileName ?? "client-release")}"`);
+    reply.header("x-version", status.version ?? "");
     return reply.send(createReadStream(paths.file));
   });
 
@@ -574,25 +611,27 @@ function getFileStatus<TMeta extends InstallerMeta>(
   const legacyMeta = readManagedMeta<TMeta>(paths.legacyMeta);
   const fileMeta = readManagedMeta<TMeta>(paths.fileMeta) ?? (legacyMeta?.downloadUrl ? undefined : legacyMeta);
   const urlMeta = readManagedMeta<TMeta>(paths.urlMeta) ?? (legacyMeta?.downloadUrl ? legacyMeta : undefined);
+  const storeMeta = readManagedMeta<{ storeProductId?: string }>(paths.storeMeta);
   const file = buildFileMeta(paths.file, fileMeta, name);
   const url = urlMeta?.downloadUrl ? urlMeta : undefined;
+  const storeProductId = storeMeta?.storeProductId?.trim() || undefined;
 
-  if (!file && !url) {
-    return { uploaded: false, hasFile: false, hasUrl: false };
+  if (!file && !url && !storeProductId) {
+    return { uploaded: false, hasFile: false, hasUrl: false, hasStore: false };
   }
 
   const preferred = url ?? file;
-  if (!preferred) {
-    return { uploaded: false, hasFile: false, hasUrl: false };
-  }
+  const preferredSource: "url" | "file" | "store" = url ? "url" : file ? "file" : "store";
 
   return {
     uploaded: true,
     hasFile: Boolean(file),
     hasUrl: Boolean(url),
-    preferred: url ? "url" : "file",
+    hasStore: Boolean(storeProductId),
+    preferred: preferredSource,
     file,
     url,
+    storeProductId,
     ...preferred,
   } as ManagedPackageStatus<TMeta>;
 }
@@ -637,6 +676,7 @@ function getManagedFilePaths(dataPath: string | undefined, name: string): {
   legacyMeta: string;
   fileMeta: string;
   urlMeta: string;
+  storeMeta: string;
 } {
   const dir = join(dataPath ? dirname(dataPath) : "data", "installers");
   return {
@@ -645,6 +685,7 @@ function getManagedFilePaths(dataPath: string | undefined, name: string): {
     legacyMeta: join(dir, `${name}.json`),
     fileMeta: join(dir, `${name}.file.json`),
     urlMeta: join(dir, `${name}.url.json`),
+    storeMeta: join(dir, `${name}.store.json`),
   };
 }
 

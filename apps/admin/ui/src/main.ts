@@ -104,11 +104,13 @@ interface InstallerStatus {
   uploaded: boolean;
   hasFile?: boolean;
   hasUrl?: boolean;
-  preferred?: "url" | "file";
+  hasStore?: boolean;
+  preferred?: "url" | "file" | "store";
   fileName?: string;
   size?: number;
   updatedAt?: string;
   downloadUrl?: string;
+  storeProductId?: string;
   file?: InstallerStatus;
   url?: InstallerStatus;
 }
@@ -209,6 +211,7 @@ const App = {
     const clientReleaseVersion = ref("");
     const installerDownloadUrl = ref("");
     const installerFileName = ref("");
+    const installerStoreProductId = ref("");
     const clientReleaseDownloadUrl = ref("");
     const clientReleaseFileName = ref("");
     const installerUploadProgress = ref(0);
@@ -688,6 +691,36 @@ const App = {
       }
     }
 
+    async function saveInstallerStore() {
+      if (!installerStoreProductId.value.trim()) {
+        message.error("请填写微软商店 Product ID");
+        return;
+      }
+
+      try {
+        const body = await store.api<{ installer: InstallerStatus }>("/api/admin/codex-desktop-installer-store", {
+          method: "PUT",
+          body: { storeProductId: installerStoreProductId.value.trim() },
+        });
+        store.installer = body.installer;
+        message.success("微软商店安装已保存");
+      } catch (error) {
+        message.error(error instanceof Error ? error.message : "保存失败");
+      }
+    }
+
+    async function deleteInstallerStore() {
+      try {
+        const body = await store.api<{ installer: InstallerStatus }>("/api/admin/codex-desktop-installer-store", {
+          method: "DELETE",
+        });
+        store.installer = body.installer;
+        message.success("微软商店安装已删除");
+      } catch (error) {
+        message.error(error instanceof Error ? error.message : "删除失败");
+      }
+    }
+
     async function uploadClientRelease(event: Event) {
       const input = event.target as HTMLInputElement;
       const file = input.files?.[0];
@@ -904,6 +937,7 @@ const App = {
       clientReleaseVersion,
       installerDownloadUrl,
       installerFileName,
+      installerStoreProductId,
       clientReleaseDownloadUrl,
       clientReleaseFileName,
       clientReleaseHealth,
@@ -946,6 +980,8 @@ const App = {
       providerRouteSummary,
       uploadInstaller,
       saveInstallerUrl,
+      saveInstallerStore,
+      deleteInstallerStore,
       uploadClientRelease,
       saveClientReleaseUrl,
       deleteInstaller,
@@ -1227,6 +1263,24 @@ const App = {
                         </n-form-item>
                       </n-grid-item>
                     </n-grid>
+                    <n-alert type="info" title="微软商店安装（推荐）" class="compact-alert">
+                      填写 Codex 在微软商店的 Product ID（例如 9PLM9XGG6VKS），客户端会优先用 winget 静默安装；无 winget 或安装失败时自动拉起微软商店让用户手动安装，无需服务器托管安装包。
+                    </n-alert>
+                    <n-grid :cols="24" :x-gap="12" responsive="screen">
+                      <n-grid-item :span="20">
+                        <n-form-item label="微软商店 Product ID">
+                          <n-input
+                            v-model:value="installerStoreProductId"
+                            placeholder="9PLM9XGG6VKS"
+                          />
+                        </n-form-item>
+                      </n-grid-item>
+                      <n-grid-item :span="4">
+                        <n-form-item label=" ">
+                          <n-button type="primary" block @click="saveInstallerStore">保存商店</n-button>
+                        </n-form-item>
+                      </n-grid-item>
+                    </n-grid>
                     <div v-if="installerUploadProgress" class="upload-progress">
                       <div class="upload-progress__meta">
                         <span>正在上传</span>
@@ -1250,12 +1304,18 @@ const App = {
                         </n-grid-item>
                       </n-grid>
                       <n-space class="source-row">
+                        <n-tag v-if="store.installer.hasStore" type="warning">微软商店已配置</n-tag>
                         <n-tag v-if="store.installer.hasUrl" type="success">GitHub 地址已配置</n-tag>
                         <n-tag v-if="store.installer.hasFile" type="info">服务端文件已上传</n-tag>
                       </n-space>
+                      <p v-if="store.installer.storeProductId" class="muted-line">微软商店 Product ID：{{ store.installer.storeProductId }}</p>
                       <p v-if="store.installer.url?.downloadUrl" class="muted-line url-line">{{ store.installer.url.downloadUrl }}</p>
                       <p v-if="store.installer.file" class="muted-line">服务端文件：{{ store.installer.file.fileName }}，{{ formatBytes(store.installer.file.size) }}</p>
                       <n-space>
+                        <n-popconfirm v-if="store.installer.hasStore" positive-text="确认" negative-text="取消" @positive-click="deleteInstallerStore">
+                          <template #trigger><n-button tertiary type="error">删除微软商店配置</n-button></template>
+                          只删除微软商店 Product ID，其它来源会保留。
+                        </n-popconfirm>
                         <n-popconfirm v-if="store.installer.hasUrl" positive-text="确认" negative-text="取消" @positive-click="deleteInstaller('url')">
                           <template #trigger><n-button tertiary type="error">删除 GitHub 地址</n-button></template>
                           只删除 GitHub 下载地址，已上传到服务器的安装包会保留。
