@@ -816,23 +816,33 @@ const App = {
     ];
 
     const tokenColumns: DataTableColumns<TokenRow> = [
-      { title: "名称", key: "name", width: 110 },
+      { title: "名称", key: "name", width: 90, align: "center", titleAlign: "center" },
       {
-        title: "完整 Token",
+        title: "令牌",
         key: "tokenValue",
-        width: 230,
-        render: (row) => h("span", { class: "token-code" }, row.tokenValue),
+        width: 200,
+        align: "center",
+        titleAlign: "center",
+        render: (row) =>
+          h(NSpace, { align: "center", justify: "center", wrap: false, size: 6 }, () => [
+            h("span", { class: "token-code" }, row.tokenPreview),
+            h(NButton, { size: "tiny", secondary: true, onClick: () => copy(row.tokenValue) }, () => "复制"),
+          ]),
       },
       {
         title: "状态",
         key: "enabled",
-        width: 80,
+        width: 70,
+        align: "center",
+        titleAlign: "center",
         render: (row) => h(NTag, { type: row.enabled ? "success" : "error" }, () => row.enabled ? "启用" : "停用"),
       },
       {
         title: "可用服务商",
         key: "allowedProviders",
-        width: 220,
+        width: 190,
+        align: "center",
+        titleAlign: "center",
         render: (row) =>
           h(NSelect, {
             class: "token-provider-select",
@@ -845,25 +855,30 @@ const App = {
             onUpdateValue: (value: string[]) => setTokenProviders(row, value),
           }),
       },
-      { title: "备注", key: "note", width: 120 },
+      { title: "备注", key: "note", width: 90, align: "center", titleAlign: "center" },
       {
         title: "设备上限",
         key: "deviceLimit",
-        width: 130,
+        width: 96,
+        align: "center",
+        titleAlign: "center",
         render: (row) =>
           h(NInputNumber, {
             size: "small",
             min: 0,
-            style: "width: 110px",
+            style: "width: 80px",
             value: row.deviceLimit ?? 0,
-            placeholder: "0=不限",
+            placeholder: "0",
+            showButton: false,
             onUpdateValue: (value: number | null) => setTokenDeviceLimit(row, value),
           }),
       },
       {
         title: "已绑设备",
         key: "boundDevices",
-        width: 100,
+        width: 88,
+        align: "center",
+        titleAlign: "center",
         render: (row) => {
           const devices = row.boundDevices ?? [];
           const limit = row.deviceLimit ?? 0;
@@ -909,11 +924,11 @@ const App = {
       {
         title: "操作",
         key: "actions",
-        width: 220,
-        fixed: "right",
+        width: 150,
+        align: "center",
+        titleAlign: "center",
         render: (row) =>
-          h(NSpace, { wrap: false, align: "center", size: 8 }, () => [
-            h(NButton, { size: "small", onClick: () => copy(row.tokenValue) }, () => "复制"),
+          h(NSpace, { wrap: false, align: "center", justify: "center", size: 8 }, () => [
             h(NButton, { size: "small", onClick: () => setTokenEnabled(row, !row.enabled) }, () => row.enabled ? "停用" : "启用"),
             h(
               NPopconfirm,
@@ -1231,7 +1246,7 @@ const App = {
                     <n-button type="primary" @click="createToken">生成令牌</n-button>
                   </n-card>
                   <n-card class="section-card" title="令牌列表">
-                    <n-data-table :columns="tokenColumns" :data="store.dashboard.tokens" :scroll-x="1210" />
+                    <n-data-table :columns="tokenColumns" :data="store.dashboard.tokens" />
                   </n-card>
                 </n-tab-pane>
 
