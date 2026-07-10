@@ -383,7 +383,7 @@ public static class CodexInstaller
 
         progress?.Report(new CodexInstallProgress
         {
-            Message = "正在通过微软商店安装 Codex 桌面版。",
+            Message = "正在通过微软商店安装。",
             Percent = null
         });
 
@@ -431,7 +431,7 @@ public static class CodexInstaller
 
             progress?.Report(new CodexInstallProgress
             {
-                Message = "正在使用 winget 静默安装（首次可能需较长时间）。",
+                Message = "正在通过 winget 安装，请稍候。",
                 Percent = null
             });
 
