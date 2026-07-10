@@ -17,18 +17,21 @@ public sealed class AppDialog : ScaledForm
     private static readonly Color Line = Color.FromArgb(218, 229, 233);
     private static readonly Color TextColor = Color.FromArgb(18, 27, 34);
     private static readonly Color Danger = Color.FromArgb(184, 65, 51);
-    private static readonly Size DialogSize = new(420, 220);
-    private const int ButtonTop = 174;
     private const int ButtonHeight = 36;
 
     private readonly string _message;
     private readonly AppDialogKind _kind;
+    private readonly IReadOnlyList<DialogAction> _actions;
+    private Rectangle _cardRect = new(24, 20, 372, 150);
+    private bool _built;
 
     private AppDialog(string title, string message, AppDialogKind kind, IReadOnlyList<DialogAction> actions)
     {
         _message = message;
         _kind = kind;
-        ClientSize = DialogSize;
+        _actions = actions;
+        // 这些弹窗手动按 DPI 缩放，关闭自动缩放以免与手动缩放叠加。
+        AutoScaleMode = AutoScaleMode.None;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
@@ -37,8 +40,28 @@ public sealed class AppDialog : ScaledForm
         BackColor = Background;
         Font = new Font("Microsoft YaHei UI", 10F);
         Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+    }
 
-        BuildUi(actions);
+    protected override void OnLoad(EventArgs e)
+    {
+        base.OnLoad(e);
+        // 句柄已创建，DeviceDpi 此时才准确，据此手动缩放布局。
+        if (!_built)
+        {
+            _built = true;
+            BuildUi(_actions);
+            RecenterToOwner();
+        }
+    }
+
+    private void RecenterToOwner()
+    {
+        if (Owner is { } owner)
+        {
+            var x = owner.Left + (owner.Width - Width) / 2;
+            var y = owner.Top + (owner.Height - Height) / 2;
+            Location = new Point(Math.Max(0, x), Math.Max(0, y));
+        }
     }
 
     public static void ShowInfo(IWin32Window? owner, string title, string message) =>
@@ -79,51 +102,81 @@ public sealed class AppDialog : ScaledForm
         e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
         using var cardBrush = new SolidBrush(Card);
         using var linePen = new Pen(Line);
-        using var card = RoundedRect(ScaleRect(24, 28, 372, 128), ScaleInt(14));
+        using var card = RoundedRect(_cardRect, ScaleInt(14));
         e.Graphics.FillPath(cardBrush, card);
         e.Graphics.DrawPath(linePen, card);
     }
 
     private void BuildUi(IReadOnlyList<DialogAction> actions)
     {
+        // 全部换算为设备像素：固定尺寸用 ScaleInt 按当前 DPI 缩放，文字用当前 DPI 实测，单一坐标系不叠加。
+        var dialogWidth = ScaleInt(420);
+        var cardX = ScaleInt(24);
+        var cardY = ScaleInt(20);
+        var cardW = dialogWidth - cardX * 2;
+        var inset = ScaleInt(24);
+        var iconSize = ScaleInt(44);
+        var iconGap = ScaleInt(16);
+        var buttonHeight = ScaleInt(ButtonHeight);
+        var gap = ScaleInt(12);
+
+        var textX = cardX + inset + iconSize + iconGap;
+        var textRight = cardX + cardW - inset;
+        var textW = textRight - textX;
+
+        var measured = TextRenderer.MeasureText(
+            _message, Font, new Size(textW, int.MaxValue),
+            TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
+        var lineHeight = TextRenderer.MeasureText("测", Font).Height;
+        var contentH = Math.Max(measured.Height + lineHeight, iconSize); // 留一行余量兜底
+
+        var textTop = cardY + inset;
+        var buttonTop = textTop + contentH + ScaleInt(22);
+        var cardBottom = buttonTop + buttonHeight + inset;
+        _cardRect = new Rectangle(cardX, cardY, cardW, cardBottom - cardY);
+        ClientSize = new Size(dialogWidth, cardBottom + ScaleInt(20));
+
         Controls.Add(new DialogIcon
         {
             Kind = _kind,
-            Location = new Point(46, 70),
-            Size = new Size(44, 44),
+            Location = new Point(cardX + inset, textTop),
+            Size = new Size(iconSize, iconSize),
             BackColor = Card
         });
 
         Controls.Add(new Label
         {
             AutoSize = false,
-            AutoEllipsis = true,
-            Location = new Point(106, 52),
-            Size = new Size(260, 80),
+            Location = new Point(textX, textTop),
+            Size = new Size(textW, contentH),
             Text = _message,
             ForeColor = TextColor,
             BackColor = Card,
-            TextAlign = ContentAlignment.MiddleLeft
+            TextAlign = ContentAlignment.TopLeft,
+            UseMnemonic = false
         });
 
-        var right = 396;
+        // 按钮从右向左排列，宽度随文字自适应（中文长按钮不再被截断）。
+        var right = cardX + cardW;
         foreach (var action in actions.Reverse())
         {
-            right -= 92;
-            var button = BuildButton(action, new Point(right, ButtonTop));
+            var textWidth = TextRenderer.MeasureText(action.Text, Font).Width;
+            var width = Math.Max(ScaleInt(92), textWidth + ScaleInt(36));
+            right -= width;
+            var button = BuildButton(action, new Point(right, buttonTop), width, buttonHeight);
             Controls.Add(button);
-            right -= 12;
+            right -= gap;
         }
     }
 
-    private Button BuildButton(DialogAction action, Point location)
+    private Button BuildButton(DialogAction action, Point location, int width, int height)
     {
         var button = new Button
         {
             Text = action.Text,
             DialogResult = action.Result,
             Location = location,
-            Size = new Size(92, ButtonHeight),
+            Size = new Size(width, height),
             BackColor = action.Background,
             ForeColor = action.Foreground,
             FlatStyle = FlatStyle.Flat,
@@ -209,10 +262,14 @@ public sealed class ProgressDialog : ScaledForm
 
     private readonly Label _message = new();
     private readonly ProgressBar _progress = new();
+    private readonly string _initialMessage;
+    private Rectangle _cardRect = new(24, 24, 372, 92);
+    private bool _built;
 
     public ProgressDialog(string title, string message)
     {
-        ClientSize = new Size(420, 150);
+        _initialMessage = message;
+        AutoScaleMode = AutoScaleMode.None;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
@@ -222,7 +279,22 @@ public sealed class ProgressDialog : ScaledForm
         BackColor = Background;
         Font = new Font("Microsoft YaHei UI", 10F);
         Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
-        BuildUi(message);
+    }
+
+    protected override void OnLoad(EventArgs e)
+    {
+        base.OnLoad(e);
+        if (!_built)
+        {
+            _built = true;
+            BuildUi(_initialMessage);
+            if (Owner is { } owner)
+            {
+                var x = owner.Left + (owner.Width - Width) / 2;
+                var y = owner.Top + (owner.Height - Height) / 2;
+                Location = new Point(Math.Max(0, x), Math.Max(0, y));
+            }
+        }
     }
 
     public void UpdateProgress(CodexInstallProgress progress)
@@ -249,23 +321,34 @@ public sealed class ProgressDialog : ScaledForm
         e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
         using var cardBrush = new SolidBrush(Card);
         using var linePen = new Pen(Line);
-        using var card = RoundedRect(ScaleRect(24, 24, 372, 92), ScaleInt(14));
+        using var card = RoundedRect(_cardRect, ScaleInt(14));
         e.Graphics.FillPath(cardBrush, card);
         e.Graphics.DrawPath(linePen, card);
     }
 
     private void BuildUi(string message)
     {
-        _message.Location = new Point(48, 48);
-        _message.Size = new Size(326, 28);
+        // 手动按当前 DPI 缩放为设备像素，单一坐标系与 OnPaint 一致。
+        var dialogWidth = ScaleInt(420);
+        var cardX = ScaleInt(24);
+        var cardY = ScaleInt(24);
+        var cardW = dialogWidth - cardX * 2;
+        var cardH = ScaleInt(92);
+        _cardRect = new Rectangle(cardX, cardY, cardW, cardH);
+        ClientSize = new Size(dialogWidth, ScaleInt(150));
+
+        var inset = ScaleInt(16);
+        _message.Location = new Point(cardX + inset, cardY + ScaleInt(24));
+        _message.Size = new Size(cardW - inset * 2, ScaleInt(28));
         _message.AutoEllipsis = true;
+        _message.UseMnemonic = false;
         _message.Text = message;
         _message.ForeColor = Muted;
         _message.BackColor = Card;
         Controls.Add(_message);
 
-        _progress.Location = new Point(48, 88);
-        _progress.Size = new Size(326, 12);
+        _progress.Location = new Point(cardX + inset, cardY + ScaleInt(64));
+        _progress.Size = new Size(cardW - inset * 2, ScaleInt(12));
         _progress.Style = ProgressBarStyle.Marquee;
         Controls.Add(_progress);
     }

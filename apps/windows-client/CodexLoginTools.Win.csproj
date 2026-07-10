@@ -11,7 +11,7 @@
     <AssemblyName>CodexProxy</AssemblyName>
     <Product>Codex 代理</Product>
     <FileDescription>Codex 代理</FileDescription>
-    <Version>0.2.5</Version>
+    <Version>0.2.6</Version>
   </PropertyGroup>
 
   <ItemGroup>
