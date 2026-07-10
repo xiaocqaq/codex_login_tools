@@ -816,20 +816,23 @@ const App = {
     ];
 
     const tokenColumns: DataTableColumns<TokenRow> = [
-      { title: "名称", key: "name" },
+      { title: "名称", key: "name", width: 110 },
       {
         title: "完整 Token",
         key: "tokenValue",
+        width: 300,
         render: (row) => h("span", { class: "token-code" }, row.tokenValue),
       },
       {
         title: "状态",
         key: "enabled",
+        width: 80,
         render: (row) => h(NTag, { type: row.enabled ? "success" : "error" }, () => row.enabled ? "启用" : "停用"),
       },
       {
         title: "可用服务商",
         key: "allowedProviders",
+        width: 220,
         render: (row) =>
           h(NSelect, {
             class: "token-provider-select",
@@ -842,10 +845,11 @@ const App = {
             onUpdateValue: (value: string[]) => setTokenProviders(row, value),
           }),
       },
-      { title: "备注", key: "note" },
+      { title: "备注", key: "note", width: 120 },
       {
         title: "设备上限",
         key: "deviceLimit",
+        width: 130,
         render: (row) =>
           h(NInputNumber, {
             size: "small",
@@ -859,6 +863,7 @@ const App = {
       {
         title: "已绑设备",
         key: "boundDevices",
+        width: 100,
         render: (row) => {
           const devices = row.boundDevices ?? [];
           const limit = row.deviceLimit ?? 0;
@@ -1225,7 +1230,7 @@ const App = {
                     <n-button type="primary" @click="createToken">生成令牌</n-button>
                   </n-card>
                   <n-card class="section-card" title="令牌列表">
-                    <n-data-table :columns="tokenColumns" :data="store.dashboard.tokens" />
+                    <n-data-table :columns="tokenColumns" :data="store.dashboard.tokens" :scroll-x="1280" />
                   </n-card>
                 </n-tab-pane>
 
