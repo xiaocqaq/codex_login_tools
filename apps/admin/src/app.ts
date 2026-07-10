@@ -480,8 +480,8 @@ export function buildAdminServer(options: AdminServerOptions): FastifyInstance {
       return reply.status(404).send({ error: "Codex 桌面版安装包文件未上传" });
     }
     reply.header("content-type", "application/octet-stream");
-    reply.header("content-length", String(status.size));
-    reply.header("content-disposition", `attachment; filename="${encodeURIComponent(status.fileName ?? "codex-desktop-installer")}"`);
+    reply.header("content-length", String(statSync(paths.file).size));
+    reply.header("content-disposition", `attachment; filename="${encodeURIComponent(status.file?.fileName ?? status.fileName ?? "codex-desktop-installer")}"`);
     return reply.send(createReadStream(paths.file));
   });
 
@@ -526,9 +526,9 @@ export function buildAdminServer(options: AdminServerOptions): FastifyInstance {
       return reply.status(404).send({ error: "client release file not uploaded" });
     }
     reply.header("content-type", "application/octet-stream");
-    reply.header("content-length", String(status.size));
-    reply.header("content-disposition", `attachment; filename="${encodeURIComponent(status.fileName ?? "client-release")}"`);
-    reply.header("x-version", status.version ?? "");
+    reply.header("content-length", String(statSync(paths.file).size));
+    reply.header("content-disposition", `attachment; filename="${encodeURIComponent(status.file?.fileName ?? status.fileName ?? "client-release")}"`);
+    reply.header("x-version", status.file?.version ?? status.version ?? "");
     return reply.send(createReadStream(paths.file));
   });
 
