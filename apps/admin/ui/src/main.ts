@@ -372,6 +372,18 @@ const App = {
       expandedProviderIds.value = [id];
     }
 
+    function setProviderEnabled(provider: ProviderConfig, enabled: boolean) {
+      provider.enabled = enabled;
+      // 停用服务商时，连带停用其下所有模型路由，避免"启用的路由指向停用服务商"的矛盾配置导致保存报错。
+      if (!enabled && store.config) {
+        for (const route of store.config.routes) {
+          if (route.providerId === provider.id) {
+            route.enabled = false;
+          }
+        }
+      }
+    }
+
     function deleteProvider(provider: ProviderConfig) {
       if (!store.config) return;
       store.config.providers = store.config.providers.filter((item) => item.id !== provider.id);
@@ -892,8 +904,9 @@ const App = {
       {
         title: "操作",
         key: "actions",
+        width: 220,
         render: (row) =>
-          h(NSpace, null, () => [
+          h(NSpace, { wrap: false, align: "center", size: 8 }, () => [
             h(NButton, { size: "small", onClick: () => copy(row.tokenValue) }, () => "复制"),
             h(NButton, { size: "small", onClick: () => setTokenEnabled(row, !row.enabled) }, () => row.enabled ? "停用" : "启用"),
             h(
@@ -932,6 +945,7 @@ const App = {
       copy,
       createToken,
       deleteProvider,
+      setProviderEnabled,
       deleteRoute,
       deleteClientRelease,
       clientReleaseVersion,
@@ -1109,7 +1123,7 @@ const App = {
                             <h3>{{ provider.name || '未命名服务商' }}</h3>
                           </div>
                           <n-space align="center">
-                            <n-switch v-model:value="provider.enabled"><template #checked>启用</template><template #unchecked>停用</template></n-switch>
+                            <n-switch :value="provider.enabled" @update:value="(v) => setProviderEnabled(provider, v)"><template #checked>启用</template><template #unchecked>停用</template></n-switch>
                             <n-button secondary @click="toggleProvider(provider.id)">
                               {{ isProviderExpanded(provider.id) ? '收起' : '展开编辑' }}
                             </n-button>
@@ -1187,7 +1201,7 @@ const App = {
                           <strong>{{ provider.name || '未命名服务商' }}</strong>
                           <span>{{ providerRouteSummary(provider.id) }}</span>
                         </div>
-                        <n-switch v-model:value="provider.enabled">
+                        <n-switch :value="provider.enabled" @update:value="(v) => setProviderEnabled(provider, v)">
                           <template #checked>启用</template>
                           <template #unchecked>停用</template>
                         </n-switch>
