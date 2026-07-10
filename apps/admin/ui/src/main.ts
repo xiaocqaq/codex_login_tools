@@ -820,7 +820,7 @@ const App = {
       {
         title: "完整 Token",
         key: "tokenValue",
-        width: 300,
+        width: 230,
         render: (row) => h("span", { class: "token-code" }, row.tokenValue),
       },
       {
@@ -910,6 +910,7 @@ const App = {
         title: "操作",
         key: "actions",
         width: 220,
+        fixed: "right",
         render: (row) =>
           h(NSpace, { wrap: false, align: "center", size: 8 }, () => [
             h(NButton, { size: "small", onClick: () => copy(row.tokenValue) }, () => "复制"),
@@ -1230,7 +1231,7 @@ const App = {
                     <n-button type="primary" @click="createToken">生成令牌</n-button>
                   </n-card>
                   <n-card class="section-card" title="令牌列表">
-                    <n-data-table :columns="tokenColumns" :data="store.dashboard.tokens" :scroll-x="1280" />
+                    <n-data-table :columns="tokenColumns" :data="store.dashboard.tokens" :scroll-x="1210" />
                   </n-card>
                 </n-tab-pane>
 
